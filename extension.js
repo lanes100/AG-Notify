@@ -476,7 +476,6 @@ function playSoundDirectly(sound) {
         const cmd = builtInSounds.includes(sound)
             ? `mpg123 "${soundPath}" || paplay "${soundPath}" || play "${soundPath}" || aplay "${soundPath}"`
             : 'aplay /usr/share/sounds/alsa/Front_Center.wav';
-            : 'aplay /usr/share/sounds/alsa/Front_Center.wav';
         exec(cmd);
     }
 }
