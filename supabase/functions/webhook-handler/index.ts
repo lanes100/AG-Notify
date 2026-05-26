@@ -6,6 +6,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || "
 
 const LEMON_SQUEEZY_SECRET = Deno.env.get('LEMON_SQUEEZY_WEBHOOK_SECRET') || ""
 const PATREON_SECRET = Deno.env.get('PATREON_WEBHOOK_SECRET') || ""
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ""
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -60,6 +61,59 @@ async function verifyHmac(secret: string, signature: string, rawBody: string): P
   return await crypto.subtle.verify("HMAC", key, signatureBytes, dataBytes);
 }
 
+// Send email with license key via Resend
+async function sendLicenseEmail(email: string, licenseKey: string): Promise<boolean> {
+  if (!RESEND_API_KEY) {
+    console.warn("Resend API Key is not set. Skipping email delivery.");
+    return false;
+  }
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${RESEND_API_KEY}`
+      },
+      body: JSON.stringify({
+        from: "AG Notify <onboarding@resend.dev>",
+        to: [email],
+        subject: "Your AG Notify Premium License Key! 🔑",
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333;">
+            <h2>Thank you for supporting AG Notify! 💖</h2>
+            <p>Your premium status has been successfully registered. Here is your license key to unlock all premium features and sounds:</p>
+            <div style="background: #f1f1f7; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 18px; font-weight: bold; letter-spacing: 1px; display: inline-block; margin: 10px 0;">
+              ${licenseKey}
+            </div>
+            <p><strong>Instructions:</strong></p>
+            <ol>
+              <li>Open VS Code.</li>
+              <li>Open the AG Notify Dashboard or press <code>Ctrl+Shift+P</code> and search for <code>AG Notify: Enter License Key</code>.</li>
+              <li>Paste the key above to activate your Premium features instantly!</li>
+            </ol>
+            <p>If you have any questions or run into issues, feel free to reply to this email.</p>
+            <br>
+            <p>Best regards,<br>AG Notify Developer</p>
+          </div>
+        `
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`Failed to send email via Resend: ${response.status} - ${errText}`);
+      return false;
+    }
+
+    console.log(`License key successfully emailed to ${email}`);
+    return true;
+  } catch (error) {
+    console.error("Error occurred while sending email:", error);
+    return false;
+  }
+}
+
 serve(async (req) => {
   const method = req.method
   if (method === "OPTIONS") {
@@ -98,6 +152,9 @@ serve(async (req) => {
           })
 
         if (error) throw error
+
+        // Automatically email key to user
+        await sendLicenseEmail(email.toLowerCase(), newKey)
 
         return new Response(JSON.stringify({ success: true, key: newKey }), {
           headers: { "Content-Type": "application/json" }
@@ -166,6 +223,9 @@ serve(async (req) => {
               is_active: true
             })
           if (error) throw error
+
+          // Email key to user
+          await sendLicenseEmail(email.toLowerCase(), newKey)
         }
 
         return new Response(JSON.stringify({ success: true }), {
