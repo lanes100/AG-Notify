@@ -122,7 +122,7 @@ async function sendLicenseEmail(email: string, licenseKey: string): Promise<bool
   }
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   const method = req.method
   if (method === "OPTIONS") {
     return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*" } })
