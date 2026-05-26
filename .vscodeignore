@@ -3,3 +3,5 @@
 .vscode/**
 .agents/**
 dev_assets/**
+concat_code.py
+codebase_contexts/**
