@@ -1403,6 +1403,13 @@ function openDashboard(context) {
                             break;
                     }
                 });
+
+                // Smooth scroll to bottom on page load to focus on premium/support area
+                window.addEventListener('load', () => {
+                    setTimeout(() => {
+                        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                    }, 200);
+                });
             </script>
         </body>
         </html>`;
