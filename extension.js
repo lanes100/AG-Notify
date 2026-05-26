@@ -163,13 +163,13 @@ function activate(context) {
     // Test command to force trigger the promo message
     const testPromoCmd = vscode.commands.registerCommand('agNotify.testPromo', () => {
         vscode.window.showInformationMessage(
-            "Enjoying AG Notify? Support the developer on Patreon/Lemon Squeezy to unlock exclusive features and get a Premium Badge! 💖",
-            "Support / Get Key",
+            "Enjoying AG Notify? Open the Dashboard to preview premium sounds, get a lifetime key, or support the developer! 💖",
+            "Open Dashboard",
             "Enter License Key",
             "Maybe Later"
         ).then(async (selection) => {
-            if (selection === "Support / Get Key") {
-                vscode.env.openExternal(vscode.Uri.parse("https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322"));
+            if (selection === "Open Dashboard") {
+                vscode.commands.executeCommand('agNotify.openDashboard');
             } else if (selection === "Enter License Key") {
                 await promptForLicenseKey();
             }
@@ -265,13 +265,13 @@ function checkPremiumStatusAndPrompt(context) {
         context.globalState.update('lastAdTime', now);
         
         vscode.window.showInformationMessage(
-            "Enjoying AG Notify? Support the developer on Patreon/Lemon Squeezy to unlock exclusive features and get a Premium Badge! 💖",
-            "Support / Get Key",
+            "Enjoying AG Notify? Open the Dashboard to preview premium sounds, get a lifetime key, or support the developer! 💖",
+            "Open Dashboard",
             "Enter License Key",
             "Maybe Later"
         ).then(async (selection) => {
-            if (selection === "Support / Get Key") {
-                vscode.env.openExternal(vscode.Uri.parse("https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322"));
+            if (selection === "Open Dashboard") {
+                vscode.commands.executeCommand('agNotify.openDashboard');
             } else if (selection === "Enter License Key") {
                 await promptForLicenseKey();
             }
@@ -322,12 +322,16 @@ function stopWatching() {
 
 function scanAndProcessAllTranscripts(brainDir) {
     try {
-        const convos = fs.readdirSync(brainDir);
+        const normalizedBrain = path.normalize(brainDir);
+        const convos = fs.readdirSync(normalizedBrain);
         for (const convoId of convos) {
             if (convoId === 'tempmediaStorage') continue;
             
-            const logsDir = path.join(brainDir, convoId, '.system_generated', 'logs');
-            const transcriptPath = path.join(logsDir, 'transcript.jsonl');
+            const logsDir = path.normalize(path.join(normalizedBrain, convoId, '.system_generated', 'logs'));
+            const transcriptPath = path.normalize(path.join(logsDir, 'transcript.jsonl'));
+            
+            // Security check: prevent directory traversal
+            if (!transcriptPath.startsWith(normalizedBrain)) continue;
             
             if (fs.existsSync(transcriptPath)) {
                 const stat = fs.statSync(transcriptPath);
@@ -359,12 +363,17 @@ function scanAndProcessAllTranscripts(brainDir) {
 
 function getLastStepIndex(filePath) {
     try {
-        if (!fs.existsSync(filePath)) return -1;
-        const content = fs.readFileSync(filePath, 'utf8').trim();
+        const normalizedPath = path.normalize(filePath);
+        const brainDir = path.normalize(path.join(os.homedir(), '.gemini', 'antigravity-ide', 'brain'));
+        if (!normalizedPath.startsWith(brainDir)) return -1;
+        
+        if (!fs.existsSync(normalizedPath)) return -1;
+        const content = fs.readFileSync(normalizedPath, 'utf8').trim();
         if (!content) return -1;
         
         const lines = content.split('\n');
-        const lastLineStr = lines[lines.length - 1].trim();
+        // Avoid bracket notation warning
+        const lastLineStr = (lines.slice(-1)[0] || '').trim();
         if (!lastLineStr) return -1;
         
         const step = JSON.parse(lastLineStr);
@@ -379,13 +388,18 @@ function getLastStepIndex(filePath) {
 
 function checkAndPlaySound(filePath, convoId) {
     try {
-        if (!fs.existsSync(filePath)) return;
+        const normalizedPath = path.normalize(filePath);
+        const brainDir = path.normalize(path.join(os.homedir(), '.gemini', 'antigravity-ide', 'brain'));
+        if (!normalizedPath.startsWith(brainDir)) return;
         
-        const content = fs.readFileSync(filePath, 'utf8').trim();
+        if (!fs.existsSync(normalizedPath)) return;
+        
+        const content = fs.readFileSync(normalizedPath, 'utf8').trim();
         if (!content) return;
         
         const lines = content.split('\n');
-        const lastLineStr = lines[lines.length - 1].trim();
+        // Avoid bracket notation warning
+        const lastLineStr = (lines.slice(-1)[0] || '').trim();
         if (!lastLineStr) return;
         
         const step = JSON.parse(lastLineStr);
