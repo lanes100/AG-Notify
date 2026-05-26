@@ -17,8 +17,8 @@ function generateLicenseKey(): string {
     let block1 = '';
     let block2 = '';
     for (let i = 0; i < 4; i++) {
-      block1 += chars[Math.floor(Math.random() * chars.length)];
-      block2 += chars[Math.floor(Math.random() * chars.length)];
+      block1 += chars.charAt(Math.floor(Math.random() * chars.length));
+      block2 += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     let sum = 0;
     for (let i = 0; i < block1.length; i++) {
@@ -37,7 +37,7 @@ function generateLicenseKey(): string {
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    bytes.set([parseInt(hex.substring(i, i + 2), 16)], i / 2);
   }
   return bytes;
 }
