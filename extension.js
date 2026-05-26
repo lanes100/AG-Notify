@@ -9,9 +9,11 @@ const seenFilesMtime = new Map(); // filePath -> mtimeMs
 let statusBarItem;
 let conversationCheckInterval = null;
 let isStartupPhase = true;
+let extensionPath = ''; // Store extension directory path dynamically
 
 function activate(context) {
     console.log('AG Notify extension is now active!');
+    extensionPath = context.extensionPath;
     
     createStatusBarItem(context);
     setupPollingWatcher(context);
@@ -58,10 +60,13 @@ function activate(context) {
             await config.update('soundOnComplete', !completeEnabled, vscode.ConfigurationTarget.Global);
             vscode.window.showInformationMessage(`Completion sound alerts ${!completeEnabled ? 'ENABLED' : 'DISABLED'}.`);
         } else if (selection.action === 'test_complete') {
-            playSoundDirectly(config.get('soundOnCompleteType', 'Windows Notify System Generic.wav'));
+            playSoundDirectly(config.get('soundOnCompleteType', 'minimal_chime.wav'));
         } else if (selection.action === 'choose_complete') {
             const sounds = [
-                { label: "Modern Windows 11 Notify (Recommended for Complete)", description: "Windows Notify System Generic.wav" },
+                { label: "✨ Premium: Minimal Chime (Recommended)", description: "minimal_chime.wav" },
+                { label: "✨ Premium: Success Bell", description: "success_bell.wav" },
+                { label: "✨ Premium: Agent Cosmic Sweep", description: "agent_done.wav" },
+                { label: "Modern Windows 11 Notify", description: "Windows Notify System Generic.wav" },
                 { label: "Modern Windows Quiet Note", description: "Windows Information Bar.wav" },
                 { label: "Notification Chirp", description: "notify.wav" },
                 { label: "Classic Chimes", description: "chimes.wav" },
@@ -101,7 +106,7 @@ function activate(context) {
     
     const playTestCmd = vscode.commands.registerCommand('agNotify.playTest', () => {
         const config = vscode.workspace.getConfiguration('agNotify');
-        playSoundDirectly(config.get('soundOnCompleteType', 'Windows Notify System Generic.wav'));
+        playSoundDirectly(config.get('soundOnCompleteType', 'minimal_chime.wav'));
     });
     
     context.subscriptions.push(toggleCmd);
@@ -286,15 +291,20 @@ function playSound(type) {
     if (type === 'complete') {
         const completeEnabled = config.get('soundOnComplete', true);
         if (!completeEnabled) return;
-        playSoundDirectly(config.get('soundOnCompleteType', 'Windows Notify System Generic.wav'));
+        playSoundDirectly(config.get('soundOnCompleteType', 'minimal_chime.wav'));
     }
 }
 
 function playSoundDirectly(sound) {
     const platform = process.platform;
+    const builtInSounds = ['minimal_chime.wav', 'success_bell.wav', 'agent_done.wav'];
+    
+    let soundPath = sound;
+    if (builtInSounds.includes(sound)) {
+        soundPath = path.join(extensionPath, 'sounds', sound);
+    }
     
     if (platform === 'win32') {
-        let soundPath = sound;
         if (!soundPath.includes('\\') && !soundPath.includes(':')) {
             soundPath = path.join('C:\\Windows\\Media', soundPath);
         }
@@ -304,9 +314,11 @@ function playSoundDirectly(sound) {
             if (error) console.error("AG Notify Error playing Windows sound:", error);
         });
     } else if (platform === 'darwin') {
-        exec('afplay /System/Library/Sounds/Glass.aiff');
+        const cmd = builtInSounds.includes(sound) ? `afplay "${soundPath}"` : 'afplay /System/Library/Sounds/Glass.aiff';
+        exec(cmd);
     } else {
-        exec('aplay /usr/share/sounds/alsa/Front_Center.wav');
+        const cmd = builtInSounds.includes(sound) ? `aplay "${soundPath}"` : 'aplay /usr/share/sounds/alsa/Front_Center.wav';
+        exec(cmd);
     }
 }
 

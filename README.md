@@ -1,31 +1,58 @@
-# AG Notify - VS Code Sound Notification Extension
+# 🔔 AG Notify
 
-AG Notify is a lightweight VS Code extension developed exclusively for the Antigravity IDE. It automatically plays a Windows notification sound whenever the Antigravity Agent completes a request, keeping you informed in the background without needing to watch the chat window.
+> Instantly boost your AI-assisted coding productivity with crystal-clear, cross-platform sound alerts. 
 
-## 🚀 Features
+**AG Notify** is a premium, lightweight VS Code extension designed to save your focus. It automatically plays a beautifully synthesized sound notification the very second your AI agent (like **Antigravity IDE**) finishes writing code and executing tasks. 
 
-- **Automatic Sound Notifications:** Instantly plays a notification sound as soon as the Antigravity agent finishes thinking and writing code.
-- **Polished Status Bar Control:** Adds a sleek `$(bell) AG Notify` indicator to the status bar.
-- **Interactive Control Menu:** Click the status bar indicator to:
-  - Play a test notification sound.
-  - Choose between different Windows system sounds (`Asterisk`, `Beep`, `Exclamation`, `Hand`, `Question`).
-  - Instantly mute/unmute notifications.
-- **Highly Configurable:** Fully custom settings available in standard VS Code settings.
-- **Cross-platform Friendly:** Primarily optimized for Windows, with native fail-safe support for macOS (`afplay`) and Linux (`aplay`).
+No more staring at progress bars, no more losing focus. Just program, let the agent do the heavy lifting, and react instantly to the satisfying chime.
 
-## 🛠️ Installation
+---
 
-Simply search for **`AG Notify`** in the Antigravity IDE extensions marketplace and click **Install**. 
+## ✨ Features
 
-Alternatively, if installing from a `.vsix` package:
-1. Open the Extensions view (`Ctrl+Shift+X`).
-2. Click the `...` (More Actions) button in the top-right corner.
-3. Select **Install from VSIX...** and select the packaged `.vsix` file.
+- **🎹 Mathematical Built-in Sounds (New & Premium):** Includes 3 professionally synthesized, mathematically clean `.wav` audio cues that work out-of-the-box on **Windows, macOS, and Linux**:
+  - `minimal_chime.wav` (Default) — A soft, elegant, decaying bell.
+  - `success_bell.wav` — A cheerful ascending double-note major chord.
+  - `agent_done.wav` — A futuristic, clean sci-fi cosmic sweep.
+- **🚀 100% Cross-Platform:** Zero configuration needed. The extension automatically resolves sounds natively on Windows, macOS (`afplay`), and Linux (`aplay`).
+- **🎛️ Sleek Status Bar Controls:** Adds an elegant `$(bell) AG Notify` indicator to your status bar. Click it to open an interactive quick-pick control panel to:
+  - Select your favorite chime (Built-in Premium or classic Windows system sounds).
+  - Instantly test-play the selected notification sound.
+  - Quick-mute/unmute all alerts.
+- **🛡️ Customization:** Support for absolute custom paths to your own `.wav` files.
+
+---
+
+## 🛠️ Quick Start & Installation
+
+1. **Install:** Search for **`AG Notify`** in the Antigravity IDE / VS Code Extensions marketplace and click **Install**.
+2. **Done!** The extension is pre-configured with the premium `minimal_chime.wav` as the default. 
+
+*To change the active chime, simply click `$(bell) AG Notify` in the bottom-right status bar.*
+
+---
 
 ## ⚙️ Extension Settings
 
-This extension contributes the following settings:
+Fine-tune your audio feedback directly in VS Code settings:
 
-* `agNotify.enabled`: Global toggle to enable or disable all sound notifications (default: `true`).
-* `agNotify.soundOnComplete`: Enable/disable sound when agent finishes its final response (default: `true`).
-* `agNotify.soundOnCompleteType`: Choose the WAV file in `C:\Windows\Media` or specify an absolute path to play (default: `"Windows Notify System Generic.wav"`).
+* `agNotify.enabled`: Global toggle to enable/disable sound notifications (default: `true`).
+* `agNotify.soundOnComplete`: Toggle notifications specifically for task completions (default: `true`).
+* `agNotify.soundOnCompleteType`: Choose the built-in chime file name or specify a full absolute path to your own WAV file (default: `"minimal_chime.wav"`).
+
+---
+
+## ☕ Support & Premium
+
+This extension is completely free and open-source. If it has saved you hours of staring at the screen and improved your coding flow, please consider supporting the development!
+
+* **Buy Me a Coffee:** [**Support on BuyMeACoffee**](https://www.buymeacoffee.com/yourusername) *(Placeholder — replace with your link)*
+* **Monobank (Украина):** [**Донат на Банку**](https://send.monobank.ua/jar/yourjar) *(Placeholder — replace with your link)*
+
+Your support keeps us building awesome, focus-saving developer tools!
+
+---
+
+## 📄 License
+
+Developed by [LyTblu7](https://github.com/LyTblu7). Distributed under the MIT License. See [LICENSE](LICENSE) for more details.

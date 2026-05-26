@@ -27,8 +27,8 @@
         },
         "agNotify.soundOnCompleteType": {
           "type": "string",
-          "default": "Windows Notify System Generic.wav",
-          "description": "WAV file in C:\\Windows\\Media\\ or absolute path to play when the agent completes its response."
+          "default": "minimal_chime.wav",
+          "description": "WAV file name of built-in premium sounds (minimal_chime.wav, success_bell.wav, agent_done.wav) or absolute path to a custom WAV file."
         },
         "agNotify.enabled": {
           "type": "boolean",
