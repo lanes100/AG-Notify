@@ -1221,34 +1221,34 @@ function openDashboard(context) {
                         <div class="side-card">
                             <h3 class="section-title">💖 Support & Sponsors</h3>
                             <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px;">
-                                Выберите удобный способ поддержки разработчика и активации премиум-функций:
+                                Choose a convenient way to support the developer and activate premium features:
                             </p>
 
                             <!-- Lemon Squeezy (License Key) -->
                             <div class="sponsor-item">
-                                <span class="sponsor-tag tag-license">🔑 Лицензионный ключ (Навсегда)</span>
+                                <span class="sponsor-tag tag-license">🔑 License Key (Lifetime)</span>
                                 <a href="https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322" class="sponsor-btn btn-lemonsqueezy" target="_blank" style="margin-top: 4px;">
                                     🍋 Lemon Squeezy Checkout (~$3.00)
                                 </a>
-                                <span class="sponsor-subtext">Единоразовая покупка. Лицензионный ключ доставляется на почту и экран оплаты мгновенно.</span>
+                                <span class="sponsor-subtext">One-time purchase. The premium license key is delivered to your email and checkout screen instantly.</span>
                             </div>
 
                             <!-- Patreon (Subscription) -->
                             <div class="sponsor-item">
-                                <span class="sponsor-tag tag-subscription">✨ Подписка (Ежемесячно)</span>
+                                <span class="sponsor-tag tag-subscription">✨ Subscription (Monthly)</span>
                                 <a href="https://patreon.com/LyTblu7?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink" class="sponsor-btn btn-patreon" target="_blank" style="margin-top: 4px;">
                                     🧡 Patreon Support ($1.99/mo)
                                 </a>
-                                <span class="sponsor-subtext">Ежемесячная подписка на уровень «Premium Badge». Ключ активации доступен в тире на Patreon.</span>
+                                <span class="sponsor-subtext">Monthly recurring support for the "Premium Badge" tier. Key is available on your Patreon tier benefits page.</span>
                             </div>
 
                             <!-- Monobank (One-time Coffee) -->
                             <div class="sponsor-item">
-                                <span class="sponsor-tag tag-one-time">☕ Чаевые (Просто на кофе)</span>
+                                <span class="sponsor-tag tag-one-time">☕ Tips (На каву)</span>
                                 <a href="https://send.monobank.ua/jar/5Lpdn6ThL" class="sponsor-btn btn-monobank" target="_blank" style="margin-top: 4px;">
                                     🐱 Monobank Jar (На каву)
                                 </a>
-                                <span class="sponsor-subtext">Разовая добровольная поддержка. Без автоматического получения лицензионного ключа.</span>
+                                <span class="sponsor-subtext">One-time voluntary support. Does not issue an automatic premium license key.</span>
                             </div>
                         </div>
                     </div>
