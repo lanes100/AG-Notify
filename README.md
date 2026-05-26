@@ -57,7 +57,8 @@ This extension is completely free and open-source. If it has saved you hours of 
 * **Monthly Support on Patreon:** [**LyTblu7 Patreon**](https://www.patreon.com/LyTblu7)
 * **Monobank Jar (Україна):** [**AG-Notify - На каву ☕**](https://send.monobank.ua/jar/5Lpdn6ThL)
 * **PayPal Tip (International "На каву"):** [**Support via PayPal ☕**](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=myshopandmyl1fe@gmail.com&currency_code=USD&item_name=AG-Notify%20Coffee%20Tip)
-* **Community & Suggestions (Reddit):** Ask questions or share feedback at [**r/google_antigravity**](https://www.reddit.com/r/google_antigravity/) or post in [**r/SideProject**](https://www.reddit.com/r/SideProject/).
+* **Reddit Announcement Post:** Join discussions and suggest sounds on [**Reddit Thread 💬**](https://www.reddit.com/r/google_antigravity/comments/1to37ae/ag_notify_sound_notifications_for_antigravity_ide/)
+* **Developer Profile (Reddit):** Contact the developer at [**u/OutrageousServe8407 👤**](https://www.reddit.com/user/OutrageousServe8407/)
 * **GitHub Repository:** [**ag-notify**](https://github.com/LyTblu7/AG-Notify)
 
 Your support keeps us building awesome, focus-saving developer tools!
