@@ -532,9 +532,9 @@ function playSoundDirectly(sound) {
         const env = { ...process.env, AG_SOUND_PATH: soundPath };
         let psCommand;
         if (soundPath.endsWith('.mp3')) {
-            psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open($env:AG_SOUND_PATH); $player.Play(); Start-Sleep -s 5`;
+            psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open([Uri]"$env:AG_SOUND_PATH"); $player.Play(); Start-Sleep -s 5`;
         } else {
-            psCommand = `(New-Object Media.SoundPlayer $env:AG_SOUND_PATH).PlaySync()`;
+            psCommand = `(New-Object Media.SoundPlayer "$env:AG_SOUND_PATH").PlaySync()`;
         }
         
         execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', psCommand], { env }, (error) => {
