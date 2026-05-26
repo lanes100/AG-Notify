@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 
 const activeConversations = new Map(); // convoId -> lastPlayedStep
 const seenFilesMtime = new Map(); // filePath -> mtimeMs
@@ -14,9 +14,6 @@ let extensionContext = null; // Store context reference globally
 
 /**
  * Validates the offline premium license key mathematically.
- * Format: AGN-XXXX-XXXX where sum of ASCII values of character blocks modulo 10 equals 7.
- * Example of valid keys you can generate for sponsors:
- * AGN-AAAA-AAAH (Sum of characters "AAAAAAAAH" satisfies sum % 10 = 7)
  */
 function validateLicenseKey(key) {
     if (!key || typeof key !== 'string') return false;
@@ -140,6 +137,21 @@ function activate(context) {
                     } else {
                         return;
                     }
+                }
+                
+                // Prevent free users from setting premium sounds through QuickPick
+                const isPremiumSound = targetSound.endsWith('.mp3') && targetSound !== 'notification_pluck.mp3';
+                if (isPremiumSound && !isPremium) {
+                    vscode.window.showWarningMessage(
+                        "✨ This is a Premium alert chime. Support the project to unlock all premium sounds!",
+                        "Open Dashboard",
+                        "Maybe Later"
+                    ).then((selection) => {
+                        if (selection === "Open Dashboard") {
+                            vscode.commands.executeCommand('agNotify.openDashboard');
+                        }
+                    });
+                    return;
                 }
                 
                 await config.update('soundOnCompleteType', targetSound, vscode.ConfigurationTarget.Global);
@@ -279,12 +291,52 @@ function checkPremiumStatusAndPrompt(context) {
     }
 }
 
+let setupRetries = 0;
+let setupTimeoutHandle = null;
+
+function isPathSafe(filePath) {
+    const normalizedPath = path.normalize(filePath);
+    const brainDir = path.normalize(path.join(os.homedir(), '.gemini', 'antigravity-ide', 'brain'));
+    return normalizedPath.startsWith(brainDir);
+}
+
+function getLastLineOfFile(filePath) {
+    try {
+        if (!fs.existsSync(filePath)) return '';
+        const stat = fs.statSync(filePath);
+        const size = stat.size;
+        if (size === 0) return '';
+        
+        // Read only the last 4096 bytes of the file for extreme performance
+        const readLength = Math.min(size, 4096);
+        const offset = size - readLength;
+        
+        const fd = fs.openSync(filePath, 'r');
+        const buffer = Buffer.alloc(readLength);
+        fs.readSync(fd, buffer, 0, readLength, offset);
+        fs.closeSync(fd);
+        
+        const text = buffer.toString('utf8').trim();
+        if (!text) return '';
+        
+        const lines = text.split('\n');
+        return (lines.slice(-1)[0] || '').trim();
+    } catch (e) {
+        return '';
+    }
+}
+
 function setupPollingWatcher(context) {
     const brainDir = path.join(os.homedir(), '.gemini', 'antigravity-ide', 'brain');
     
     if (!fs.existsSync(brainDir)) {
-        console.log("AG Notify: Brain directory does not exist yet. Retrying in 5 seconds...");
-        setTimeout(() => setupPollingWatcher(context), 5000);
+        if (setupRetries < 20) {
+            setupRetries++;
+            console.log(`AG Notify: Brain directory does not exist yet. Retrying in 5 seconds... (Attempt ${setupRetries}/20)`);
+            setupTimeoutHandle = setTimeout(() => setupPollingWatcher(context), 5000);
+        } else {
+            console.log("AG Notify: Brain directory could not be resolved after 20 attempts. Polling watcher stopped.");
+        }
         return;
     }
     
@@ -318,10 +370,17 @@ function stopWatching() {
         clearInterval(conversationCheckInterval);
         conversationCheckInterval = null;
     }
+    if (setupTimeoutHandle) {
+        clearTimeout(setupTimeoutHandle);
+        setupTimeoutHandle = null;
+    }
 }
 
 function scanAndProcessAllTranscripts(brainDir) {
     try {
+        const activeConvoIds = new Set();
+        const activeTranscriptPaths = new Set();
+        
         const normalizedBrain = path.normalize(brainDir);
         const convos = fs.readdirSync(normalizedBrain);
         for (const convoId of convos) {
@@ -331,9 +390,12 @@ function scanAndProcessAllTranscripts(brainDir) {
             const transcriptPath = path.normalize(path.join(logsDir, 'transcript.jsonl'));
             
             // Security check: prevent directory traversal
-            if (!transcriptPath.startsWith(normalizedBrain)) continue;
+            if (!isPathSafe(transcriptPath)) continue;
             
             if (fs.existsSync(transcriptPath)) {
+                activeConvoIds.add(convoId);
+                activeTranscriptPaths.add(transcriptPath);
+                
                 const stat = fs.statSync(transcriptPath);
                 const prevMtime = seenFilesMtime.get(transcriptPath) || 0;
                 
@@ -356,6 +418,18 @@ function scanAndProcessAllTranscripts(brainDir) {
                 }
             }
         }
+        
+        // Memory pruning to prevent leaks over time
+        for (const key of activeConversations.keys()) {
+            if (!activeConvoIds.has(key)) {
+                activeConversations.delete(key);
+            }
+        }
+        for (const key of seenFilesMtime.keys()) {
+            if (!activeTranscriptPaths.has(key)) {
+                seenFilesMtime.delete(key);
+            }
+        }
     } catch (err) {
         console.error("AG Notify error in polling scan:", err);
     }
@@ -363,17 +437,8 @@ function scanAndProcessAllTranscripts(brainDir) {
 
 function getLastStepIndex(filePath) {
     try {
-        const normalizedPath = path.normalize(filePath);
-        const brainDir = path.normalize(path.join(os.homedir(), '.gemini', 'antigravity-ide', 'brain'));
-        if (!normalizedPath.startsWith(brainDir)) return -1;
-        
-        if (!fs.existsSync(normalizedPath)) return -1;
-        const content = fs.readFileSync(normalizedPath, 'utf8').trim();
-        if (!content) return -1;
-        
-        const lines = content.split('\n');
-        // Avoid bracket notation warning
-        const lastLineStr = (lines.slice(-1)[0] || '').trim();
+        if (!isPathSafe(filePath)) return -1;
+        const lastLineStr = getLastLineOfFile(filePath);
         if (!lastLineStr) return -1;
         
         const step = JSON.parse(lastLineStr);
@@ -388,18 +453,8 @@ function getLastStepIndex(filePath) {
 
 function checkAndPlaySound(filePath, convoId) {
     try {
-        const normalizedPath = path.normalize(filePath);
-        const brainDir = path.normalize(path.join(os.homedir(), '.gemini', 'antigravity-ide', 'brain'));
-        if (!normalizedPath.startsWith(brainDir)) return;
-        
-        if (!fs.existsSync(normalizedPath)) return;
-        
-        const content = fs.readFileSync(normalizedPath, 'utf8').trim();
-        if (!content) return;
-        
-        const lines = content.split('\n');
-        // Avoid bracket notation warning
-        const lastLineStr = (lines.slice(-1)[0] || '').trim();
+        if (!isPathSafe(filePath)) return;
+        const lastLineStr = getLastLineOfFile(filePath);
         if (!lastLineStr) return;
         
         const step = JSON.parse(lastLineStr);
@@ -471,28 +526,53 @@ function playSoundDirectly(sound) {
             soundPath = path.join('C:\\Windows\\Media', soundPath);
         }
         
-        const escapedPath = soundPath.replace(/'/g, "''");
-        
-        // Use PresentationCore MediaPlayer for native robust MP3 playback on Windows
+        // Pass path safely via environment variable to prevent command injection
+        const env = { ...process.env, AG_SOUND_PATH: soundPath };
         let psCommand;
         if (soundPath.endsWith('.mp3')) {
-            psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open('${escapedPath}'); $player.Play(); Start-Sleep -s 5`;
+            psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open($env:AG_SOUND_PATH); $player.Play(); Start-Sleep -s 5`;
         } else {
-            psCommand = `(New-Object Media.SoundPlayer '${escapedPath}').PlaySync()`;
+            psCommand = `(New-Object Media.SoundPlayer $env:AG_SOUND_PATH).PlaySync()`;
         }
         
-        exec(`powershell -c "${psCommand}"`, (error) => {
+        execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', psCommand], { env }, (error) => {
             if (error) console.error("AG Notify Error playing Windows sound:", error);
         });
     } else if (platform === 'darwin') {
-        const cmd = builtInSounds.includes(sound) ? `afplay "${soundPath}"` : 'afplay /System/Library/Sounds/Glass.aiff';
-        exec(cmd);
+        if (builtInSounds.includes(sound) || fs.existsSync(soundPath)) {
+            execFile('afplay', [soundPath], (error) => {
+                if (error) console.error("AG Notify Error playing macOS sound:", error);
+            });
+        } else {
+            execFile('afplay', ['/System/Library/Sounds/Glass.aiff'], (error) => {
+                if (error) console.error("AG Notify Error playing macOS default sound:", error);
+            });
+        }
     } else {
         // Linux fallback chain for MP3 / WAV
-        const cmd = builtInSounds.includes(sound)
-            ? `mpg123 "${soundPath}" || paplay "${soundPath}" || play "${soundPath}" || aplay "${soundPath}"`
-            : 'aplay /usr/share/sounds/alsa/Front_Center.wav';
-        exec(cmd);
+        if (builtInSounds.includes(sound) || fs.existsSync(soundPath)) {
+            const players = [
+                { cmd: 'mpg123', args: [soundPath] },
+                { cmd: 'paplay', args: [soundPath] },
+                { cmd: 'play', args: [soundPath] },
+                { cmd: 'aplay', args: [soundPath] }
+            ];
+            
+            function tryPlay(index) {
+                if (index >= players.length) return;
+                const p = players[index];
+                execFile(p.cmd, p.args, (error) => {
+                    if (error) {
+                        tryPlay(index + 1);
+                    }
+                });
+            }
+            tryPlay(0);
+        } else {
+            execFile('aplay', ['/usr/share/sounds/alsa/Front_Center.wav'], (error) => {
+                if (error) console.error("AG Notify Error playing Linux default sound:", error);
+            });
+        }
     }
 }
 
@@ -546,6 +626,7 @@ function openDashboard(context) {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: vscode-webview-resource: https:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'unsafe-inline';">
             <title>AG Notify Dashboard</title>
             <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
             <style>

@@ -33,7 +33,7 @@ No more staring at progress bars, no more losing focus. Just program, let the ag
 ## 🛠️ Quick Start & Installation
 
 1. **Install:** Search for **`AG Notify`** in the Antigravity IDE / VS Code Extensions marketplace and click **Install**.
-2. **Done!** The extension is pre-configured with the premium `minimal_chime.wav` as the default. 
+2. **Done!** The extension is pre-configured with the premium `notification_pluck.mp3` as the default. 
 
 *To change the active chime, simply click `$(bell) AG Notify` in the bottom-right status bar.*
 
@@ -45,7 +45,7 @@ Fine-tune your audio feedback directly in VS Code settings:
 
 * `agNotify.enabled`: Global toggle to enable/disable sound notifications (default: `true`).
 * `agNotify.soundOnComplete`: Toggle notifications specifically for task completions (default: `true`).
-* `agNotify.soundOnCompleteType`: Choose the built-in chime file name or specify a full absolute path to your own WAV file (default: `"minimal_chime.wav"`).
+* `agNotify.soundOnCompleteType`: Choose the built-in chime file name or specify a full absolute path to your own WAV/MP3 file (default: `"notification_pluck.mp3"`).
 
 ---
 
