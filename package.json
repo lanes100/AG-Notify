@@ -1,0 +1,51 @@
+{
+  "name": "ag-notify",
+  "displayName": "AG Notify",
+  "description": "Plays simple sound notifications when the Google Antigravity Agent finishes a task.",
+  "version": "1.0.3",
+  "publisher": "LyTblu7",
+  "license": "MIT",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.50.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "AG Notify Settings",
+      "properties": {
+        "agNotify.soundOnComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Play a sound when the agent completes its final response."
+        },
+        "agNotify.soundOnCompleteType": {
+          "type": "string",
+          "default": "Windows Notify System Generic.wav",
+          "description": "WAV file in C:\\Windows\\Media\\ or absolute path to play when the agent completes its response."
+        },
+        "agNotify.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Global toggle to enable or disable all sound notifications."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "agNotify.toggle",
+        "title": "AG Notify: Toggle Sound Notifications"
+      },
+      {
+        "command": "agNotify.playTest",
+        "title": "AG Notify: Play Test Sound"
+      }
+    ]
+  }
+}
