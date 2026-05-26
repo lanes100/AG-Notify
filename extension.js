@@ -37,6 +37,8 @@ function validateLicenseKey(key) {
 
 function activate(context) {
     console.log('AG Notify extension is now active!');
+    setupRetries = 0;
+    setupTimeoutHandle = null;
     extensionPath = context.extensionPath;
     extensionContext = context;
     
@@ -100,7 +102,7 @@ function activate(context) {
             await promptForLicenseKey();
         } else if (selection.action === 'choose_complete') {
             const sounds = [
-                { label: "✨ Premium: Pluck Chime (Recommended)", description: "notification_pluck.mp3" },
+                { label: "⭐ Pluck Chime (Default - Free)", description: "notification_pluck.mp3" },
                 { label: "✨ Premium: Smooth Stereo Chime", description: "smooth_stereo.mp3" },
                 { label: "✨ Premium: Completed Task Alert", description: "completed_alert.mp3" },
                 { label: "✨ Premium: Intro Sound Bell", description: "intro_bell.mp3" },
@@ -601,7 +603,7 @@ function openDashboard(context) {
         const totalChimes = context.globalState.get('totalChimesPlayed', 0);
 
         const builtInSounds = [
-            { id: 'notification_pluck.mp3', name: '✨ Pluck Chime (Premium)', desc: 'Soft and premium pluck alert' },
+            { id: 'notification_pluck.mp3', name: '⭐ Pluck Chime (Default)', desc: 'Soft and elegant organic pluck alert (Free)' },
             { id: 'smooth_stereo.mp3', name: '✨ Smooth Stereo (Premium)', desc: 'Wide stereo high-end chime' },
             { id: 'completed_alert.mp3', name: '✨ Task Completed (Premium)', desc: 'Rich synthesizer chime' },
             { id: 'intro_bell.mp3', name: '✨ Intro Sound Bell (Premium)', desc: 'Clear corporate-style bell' },
@@ -1488,12 +1490,7 @@ function openDashboard(context) {
                     }
                 });
 
-                // Smooth scroll to bottom on page load to focus on premium/support area
-                window.addEventListener('load', () => {
-                    setTimeout(() => {
-                        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                    }, 200);
-                });
+
             </script>
         </body>
         </html>`;
@@ -1507,8 +1504,11 @@ function openDashboard(context) {
             const config = vscode.workspace.getConfiguration('agNotify');
             switch (message.command) {
                 case 'updateSetting':
-                    await config.update(message.key, message.value, vscode.ConfigurationTarget.Global);
-                    updateStatusBar();
+                    const allowedKeys = ['enabled', 'soundOnComplete'];
+                    if (allowedKeys.includes(message.key)) {
+                        await config.update(message.key, message.value, vscode.ConfigurationTarget.Global);
+                        updateStatusBar();
+                    }
                     break;
                 case 'previewSound':
                     playSoundDirectly(message.sound);
