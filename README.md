@@ -55,6 +55,7 @@ This extension is completely free and open-source. If it has saved you hours of 
 
 * **Get Premium License Key:** [**Buy Premium for $3 / 120 UAH**](https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322)
 * **Monthly Support on Patreon:** [**LyTblu7 Patreon**](https://www.patreon.com/LyTblu7)
+* **Monobank Jar (Україна):** [**AG-Notify - На каву ☕**](https://send.monobank.ua/jar/5Lpdn6ThL)
 * **GitHub Repository:** [**ag-notify**](https://github.com/LyTblu7/AG-Notify)
 
 Your support keeps us building awesome, focus-saving developer tools!
