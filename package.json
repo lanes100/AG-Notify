@@ -2,7 +2,7 @@
   "name": "ag-notify",
   "displayName": "AG Notify",
   "description": "Plays simple sound notifications when the Google Antigravity Agent finishes a task.",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "LyTblu7",
   "license": "MIT",
   "icon": "icon.png",
@@ -27,8 +27,8 @@
         },
         "agNotify.soundOnCompleteType": {
           "type": "string",
-          "default": "minimal_chime.wav",
-          "description": "WAV file name of built-in premium sounds (minimal_chime.wav, success_bell.wav, agent_done.wav) or absolute path to a custom WAV file."
+          "default": "notification_pluck.mp3",
+          "description": "Premium built-in MP3 sound (notification_pluck.mp3, message_chime.mp3, ding.mp3, notification_alert.mp3, digital_alert.mp3) or absolute path to a custom WAV/MP3 file."
         },
         "agNotify.enabled": {
           "type": "boolean",

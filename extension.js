@@ -15,7 +15,7 @@ let extensionPath = ''; // Store extension directory path dynamically
  * Validates the offline premium license key mathematically.
  * Format: AGN-XXXX-XXXX where sum of ASCII values of character blocks modulo 10 equals 7.
  * Example of valid keys you can generate for sponsors:
- * AGN-A1B2-C3D4 (Sum of characters "A1B2C3D4" is 447, 447 % 10 = 7)
+ * AGN-AAAA-AAAH (Sum of characters "AAAAAAAAH" satisfies sum % 10 = 7)
  */
 function validateLicenseKey(key) {
     if (!key || typeof key !== 'string') return false;
@@ -96,14 +96,16 @@ function activate(context) {
             await config.update('soundOnComplete', !completeEnabled, vscode.ConfigurationTarget.Global);
             vscode.window.showInformationMessage(`Completion sound alerts ${!completeEnabled ? 'ENABLED' : 'DISABLED'}.`);
         } else if (selection.action === 'test_complete') {
-            playSoundDirectly(config.get('soundOnCompleteType', 'minimal_chime.wav'));
+            playSoundDirectly(config.get('soundOnCompleteType', 'notification_pluck.mp3'));
         } else if (selection.action === 'premium_license') {
             await promptForLicenseKey();
         } else if (selection.action === 'choose_complete') {
             const sounds = [
-                { label: "✨ Premium: Minimal Chime (Recommended)", description: "minimal_chime.wav" },
-                { label: "✨ Premium: Success Bell", description: "success_bell.wav" },
-                { label: "✨ Premium: Agent Cosmic Sweep", description: "agent_done.wav" },
+                { label: "✨ Premium: Pluck Chime (Recommended)", description: "notification_pluck.mp3" },
+                { label: "✨ Premium: Message Chime", description: "message_chime.mp3" },
+                { label: "✨ Premium: Elegant Ding", description: "ding.mp3" },
+                { label: "✨ Premium: Notification Alert", description: "notification_alert.mp3" },
+                { label: "✨ Premium: Digital Alert", description: "digital_alert.mp3" },
                 { label: "Modern Windows 11 Notify", description: "Windows Notify System Generic.wav" },
                 { label: "Modern Windows Quiet Note", description: "Windows Information Bar.wav" },
                 { label: "Notification Chirp", description: "notify.wav" },
@@ -112,7 +114,7 @@ function activate(context) {
                 { label: "Nudge Sound", description: "Windows Message Nudge.wav" },
                 { label: "Tada Fanfare", description: "tada.wav" },
                 { label: "Speech On Chirp", description: "Speech On.wav" },
-                { label: "Custom .wav file path...", description: "Specify a full path to your own WAV file" }
+                { label: "Custom sound file path...", description: "Specify a full path to your own WAV/MP3 file" }
             ];
             
             const chosen = await vscode.window.showQuickPick(sounds, {
@@ -121,10 +123,10 @@ function activate(context) {
             
             if (chosen) {
                 let targetSound = chosen.description;
-                if (chosen.label === "Custom .wav file path...") {
+                if (chosen.label === "Custom sound file path...") {
                     const customPath = await vscode.window.showInputBox({
-                        prompt: `Enter the absolute path to your custom .wav file for complete`,
-                        placeHolder: "C:\\path\\to\\sound.wav"
+                        prompt: `Enter the absolute path to your custom .wav or .mp3 file`,
+                        placeHolder: "C:\\path\\to\\sound.mp3"
                     });
                     if (customPath) {
                         targetSound = customPath;
@@ -144,7 +146,7 @@ function activate(context) {
     
     const playTestCmd = vscode.commands.registerCommand('agNotify.playTest', () => {
         const config = vscode.workspace.getConfiguration('agNotify');
-        playSoundDirectly(config.get('soundOnCompleteType', 'minimal_chime.wav'));
+        playSoundDirectly(config.get('soundOnCompleteType', 'notification_pluck.mp3'));
     });
     
     const enterLicenseCmd = vscode.commands.registerCommand('agNotify.enterLicense', async () => {
@@ -222,7 +224,7 @@ function checkPremiumStatusAndPrompt(context) {
     const isPremium = validateLicenseKey(licenseKey);
     
     if (isPremium) {
-        return; // Premium users enjoy a lifetime of zero ads!
+        return; // Premium users enjoy zero ads!
     }
     
     const lastAdTime = context.globalState.get('lastAdTime', 0);
@@ -240,7 +242,6 @@ function checkPremiumStatusAndPrompt(context) {
             "Maybe Later"
         ).then(async (selection) => {
             if (selection === "Support / Get Key") {
-                // Link to Patreon/Gumroad
                 vscode.env.openExternal(vscode.Uri.parse("https://github.com/LyTblu7/AG-Notify#support--premium"));
             } else if (selection === "Enter License Key") {
                 await promptForLicenseKey();
@@ -392,13 +393,19 @@ function playSound(type) {
     if (type === 'complete') {
         const completeEnabled = config.get('soundOnComplete', true);
         if (!completeEnabled) return;
-        playSoundDirectly(config.get('soundOnCompleteType', 'minimal_chime.wav'));
+        playSoundDirectly(config.get('soundOnCompleteType', 'notification_pluck.mp3'));
     }
 }
 
 function playSoundDirectly(sound) {
     const platform = process.platform;
-    const builtInSounds = ['minimal_chime.wav', 'success_bell.wav', 'agent_done.wav'];
+    const builtInSounds = [
+        'notification_pluck.mp3',
+        'message_chime.mp3',
+        'ding.mp3',
+        'notification_alert.mp3',
+        'digital_alert.mp3'
+    ];
     
     let soundPath = sound;
     if (builtInSounds.includes(sound)) {
@@ -410,7 +417,14 @@ function playSoundDirectly(sound) {
             soundPath = path.join('C:\\Windows\\Media', soundPath);
         }
         
-        const psCommand = `(New-Object Media.SoundPlayer '${soundPath}').PlaySync()`;
+        // Use PresentationCore MediaPlayer for native robust MP3 playback on Windows
+        let psCommand;
+        if (soundPath.endsWith('.mp3')) {
+            psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open('${soundPath}'); $player.Play(); Start-Sleep -s 5`;
+        } else {
+            psCommand = `(New-Object Media.SoundPlayer '${soundPath}').PlaySync()`;
+        }
+        
         exec(`powershell -c "${psCommand}"`, (error) => {
             if (error) console.error("AG Notify Error playing Windows sound:", error);
         });
@@ -418,7 +432,10 @@ function playSoundDirectly(sound) {
         const cmd = builtInSounds.includes(sound) ? `afplay "${soundPath}"` : 'afplay /System/Library/Sounds/Glass.aiff';
         exec(cmd);
     } else {
-        const cmd = builtInSounds.includes(sound) ? `aplay "${soundPath}"` : 'aplay /usr/share/sounds/alsa/Front_Center.wav';
+        // Linux fallback chain for MP3 / WAV
+        const cmd = builtInSounds.includes(sound)
+            ? `mpg123 "${soundPath}" || paplay "${soundPath}" || play "${soundPath}" || aplay "${soundPath}"`
+            : 'aplay /usr/share/sounds/alsa/Front_Center.wav';
         exec(cmd);
     }
 }

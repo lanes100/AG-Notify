@@ -10,10 +10,12 @@ No more staring at progress bars, no more losing focus. Just program, let the ag
 
 ## ✨ Features
 
-- **🎹 Mathematical Built-in Sounds (New & Premium):** Includes 3 professionally synthesized, mathematically clean `.wav` audio cues that work out-of-the-box on **Windows, macOS, and Linux**:
-  - `minimal_chime.wav` (Default) — A soft, elegant, decaying bell.
-  - `success_bell.wav` — A cheerful ascending double-note major chord.
-  - `agent_done.wav` — A futuristic, clean sci-fi cosmic sweep.
+- **🎹 Premium Built-in Sound Alerts (New):** Includes 5 beautifully designed, high-quality modern `.mp3` chimes that work out-of-the-box on **Windows, macOS, and Linux**:
+  - `notification_pluck.mp3` (Default) — A beautiful, soft organic pluck.
+  - `message_chime.mp3` — A warm, elegant double-note chime.
+  - `ding.mp3` — A crystal-clear, professional system ding.
+  - `notification_alert.mp3` — A clean, satisfying alert notification.
+  - `digital_alert.mp3` — A crisp, modern digital interface chime.
 - **🚀 100% Cross-Platform:** Zero configuration needed. The extension automatically resolves sounds natively on Windows, macOS (`afplay`), and Linux (`aplay`).
 - **🎛️ Sleek Status Bar Controls:** Adds an elegant `$(bell) AG Notify` indicator to your status bar. Click it to open an interactive quick-pick control panel to:
   - Select your favorite chime (Built-in Premium or classic Windows system sounds).
