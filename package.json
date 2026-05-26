@@ -2,7 +2,7 @@
   "name": "ag-notify",
   "displayName": "AG Notify",
   "description": "Plays simple sound notifications when the Google Antigravity Agent finishes a task.",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "publisher": "LyTblu7",
   "license": "MIT",
   "repository": {
