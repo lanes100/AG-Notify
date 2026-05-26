@@ -28,7 +28,7 @@
         "agNotify.soundOnCompleteType": {
           "type": "string",
           "default": "notification_pluck.mp3",
-          "description": "Premium built-in MP3 sound (notification_pluck.mp3, message_chime.mp3, ding.mp3, notification_alert.mp3, digital_alert.mp3) or absolute path to a custom WAV/MP3 file."
+          "description": "Choose one of the 10 built-in premium MP3 chimes or specify an absolute path to a custom WAV/MP3 file."
         },
         "agNotify.enabled": {
           "type": "boolean",

@@ -102,6 +102,11 @@ function activate(context) {
         } else if (selection.action === 'choose_complete') {
             const sounds = [
                 { label: "✨ Premium: Pluck Chime (Recommended)", description: "notification_pluck.mp3" },
+                { label: "✨ Premium: Smooth Stereo Chime", description: "smooth_stereo.mp3" },
+                { label: "✨ Premium: Completed Task Alert", description: "completed_alert.mp3" },
+                { label: "✨ Premium: Intro Sound Bell", description: "intro_bell.mp3" },
+                { label: "✨ Premium: Premium Notification 1", description: "best_notification_1.mp3" },
+                { label: "✨ Premium: Premium Notification 2", description: "best_notification_2.mp3" },
                 { label: "✨ Premium: Message Chime", description: "message_chime.mp3" },
                 { label: "✨ Premium: Elegant Ding", description: "ding.mp3" },
                 { label: "✨ Premium: Notification Alert", description: "notification_alert.mp3" },
@@ -404,7 +409,12 @@ function playSoundDirectly(sound) {
         'message_chime.mp3',
         'ding.mp3',
         'notification_alert.mp3',
-        'digital_alert.mp3'
+        'digital_alert.mp3',
+        'smooth_stereo.mp3',
+        'completed_alert.mp3',
+        'intro_bell.mp3',
+        'best_notification_1.mp3',
+        'best_notification_2.mp3'
     ];
     
     let soundPath = sound;

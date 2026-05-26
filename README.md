@@ -10,8 +10,13 @@ No more staring at progress bars, no more losing focus. Just program, let the ag
 
 ## ✨ Features
 
-- **🎹 Premium Built-in Sound Alerts (New):** Includes 5 beautifully designed, high-quality modern `.mp3` chimes that work out-of-the-box on **Windows, macOS, and Linux**:
+- **🎹 Premium Built-in Sound Alerts (New):** Includes 10 beautifully designed, high-quality modern `.mp3` chimes that work out-of-the-box on **Windows, macOS, and Linux**:
   - `notification_pluck.mp3` (Default) — A beautiful, soft organic pluck.
+  - `smooth_stereo.mp3` — A smooth, wide modern stereo chime.
+  - `completed_alert.mp3` — A professional, clear task completion alert.
+  - `intro_bell.mp3` — A rich, resonant introduction bell.
+  - `best_notification_1.mp3` — A premium, warm notification soundscape.
+  - `best_notification_2.mp3` — A premium, clean digital notification soundscape.
   - `message_chime.mp3` — A warm, elegant double-note chime.
   - `ding.mp3` — A crystal-clear, professional system ding.
   - `notification_alert.mp3` — A clean, satisfying alert notification.
