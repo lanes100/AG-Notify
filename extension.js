@@ -1250,6 +1250,11 @@ function openDashboard(context) {
                                 </a>
                                 <span class="sponsor-subtext">One-time voluntary support. Does not issue an automatic premium license key.</span>
                             </div>
+
+                            <!-- Future Updates Note -->
+                            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-secondary); line-height: 1.4; text-align: center;">
+                                🚀 <strong>Continuous Updates:</strong> The extension will be actively maintained. New focus-saving features and high-fidelity sound alert packs will be added in upcoming releases!
+                            </div>
                         </div>
                     </div>
                 </div>
