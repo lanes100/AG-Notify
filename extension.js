@@ -1003,6 +1003,43 @@ function openDashboard(context) {
                     text-align: center;
                 }
 
+                .sponsor-item {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                    margin-top: 15px;
+                }
+                .sponsor-tag {
+                    font-size: 11px;
+                    font-weight: 800;
+                    letter-spacing: 0.8px;
+                    text-transform: uppercase;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    width: fit-content;
+                }
+                .tag-one-time {
+                    background: rgba(93, 205, 252, 0.12);
+                    color: #5dcdfc;
+                    border: 1px solid rgba(93, 205, 252, 0.2);
+                }
+                .tag-subscription {
+                    background: rgba(249, 104, 84, 0.12);
+                    color: #f96854;
+                    border: 1px solid rgba(249, 104, 84, 0.2);
+                }
+                .tag-license {
+                    background: rgba(255, 215, 0, 0.1);
+                    color: #ffd700;
+                    border: 1px solid rgba(255, 215, 0, 0.2);
+                }
+                .sponsor-subtext {
+                    font-size: 11px;
+                    color: var(--text-secondary);
+                    margin-top: 2px;
+                    line-height: 1.4;
+                }
+
                 /* Feedback Messages */
                 .toast {
                     padding: 10px 14px;
@@ -1184,24 +1221,35 @@ function openDashboard(context) {
                         <div class="side-card">
                             <h3 class="section-title">💖 Support & Sponsors</h3>
                             <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px;">
-                                Support AG Notify to get valid mathematical license keys instantly.
+                                Выберите удобный способ поддержки разработчика и активации премиум-функций:
                             </p>
 
-                            <a href="https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322" class="sponsor-btn btn-lemonsqueezy" target="_blank">
-                                🍋 Lemon Squeezy Checkout (~$3.00)
-                            </a>
+                            <!-- Lemon Squeezy (License Key) -->
+                            <div class="sponsor-item">
+                                <span class="sponsor-tag tag-license">🔑 Лицензионный ключ (Навсегда)</span>
+                                <a href="https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322" class="sponsor-btn btn-lemonsqueezy" target="_blank" style="margin-top: 4px;">
+                                    🍋 Lemon Squeezy Checkout (~$3.00)
+                                </a>
+                                <span class="sponsor-subtext">Единоразовая покупка. Лицензионный ключ доставляется на почту и экран оплаты мгновенно.</span>
+                            </div>
 
-                            <a href="https://patreon.com/LyTblu7?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink" class="sponsor-btn btn-patreon" target="_blank">
-                                🧡 Patreon Support ($1.99/mo)
-                            </a>
+                            <!-- Patreon (Subscription) -->
+                            <div class="sponsor-item">
+                                <span class="sponsor-tag tag-subscription">✨ Подписка (Ежемесячно)</span>
+                                <a href="https://patreon.com/LyTblu7?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink" class="sponsor-btn btn-patreon" target="_blank" style="margin-top: 4px;">
+                                    🧡 Patreon Support ($1.99/mo)
+                                </a>
+                                <span class="sponsor-subtext">Ежемесячная подписка на уровень «Premium Badge». Ключ активации доступен в тире на Patreon.</span>
+                            </div>
 
-                            <a href="https://send.monobank.ua/jar/5Lpdn6ThL" class="sponsor-btn btn-monobank" target="_blank">
-                                🐱 Monobank Jar (Укрианский банка)
-                            </a>
-
-                            <p class="sponsor-desc">
-                                Offline license validation key is delivered instantly on Lemon Squeezy checkout & Patreon tier pages!
-                            </p>
+                            <!-- Monobank (One-time Coffee) -->
+                            <div class="sponsor-item">
+                                <span class="sponsor-tag tag-one-time">☕ Чаевые (Просто на кофе)</span>
+                                <a href="https://send.monobank.ua/jar/5Lpdn6ThL" class="sponsor-btn btn-monobank" target="_blank" style="margin-top: 4px;">
+                                    🐱 Monobank Jar (На каву)
+                                </a>
+                                <span class="sponsor-subtext">Разовая добровольная поддержка. Без автоматического получения лицензионного ключа.</span>
+                            </div>
                         </div>
                     </div>
                 </div>
