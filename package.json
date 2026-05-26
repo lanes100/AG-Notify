@@ -2,7 +2,7 @@
   "name": "ag-notify",
   "displayName": "AG Notify",
   "description": "Plays simple sound notifications when the Google Antigravity Agent finishes a task.",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "publisher": "LyTblu7",
   "license": "MIT",
   "repository": {
@@ -66,10 +66,6 @@
       {
         "command": "agNotify.resetLicense",
         "title": "AG Notify: Reset Premium License"
-      },
-      {
-        "command": "agNotify.testPromo",
-        "title": "AG Notify: Test Promo Notification"
       }
     ]
   }

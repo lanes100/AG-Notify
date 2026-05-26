@@ -3,3 +3,7 @@ node_modules/
 .vscode/
 dev_assets/
 .vscodeignore
+*.vsix
+supabase/.temp/
+codebase_contexts/
+concat_code.py

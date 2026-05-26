@@ -146,7 +146,7 @@ function activate(context) {
     createStatusBarItem(context);
     setupPollingWatcher(context);
     
-    // Check premium status and show support prompt every 5 days for non-premium users
+    // Show support prompt on every startup for non-premium users
     checkPremiumStatusAndPrompt(context);
     
     // Register commands
