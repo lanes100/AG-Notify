@@ -11,6 +11,32 @@ let conversationCheckInterval = null;
 let isStartupPhase = true;
 let extensionPath = ''; // Store extension directory path dynamically
 
+/**
+ * Validates the offline premium license key mathematically.
+ * Format: AGN-XXXX-XXXX where sum of ASCII values of character blocks modulo 10 equals 7.
+ * Example of valid keys you can generate for sponsors:
+ * AGN-A1B2-C3D4 (Sum of characters "A1B2C3D4" is 447, 447 % 10 = 7)
+ */
+function validateLicenseKey(key) {
+    if (!key || typeof key !== 'string') return false;
+    const cleanKey = key.trim().toUpperCase();
+    if (!cleanKey.startsWith('AGN-')) return false;
+    
+    const parts = cleanKey.split('-');
+    if (parts.length !== 3) return false;
+    
+    const block1 = parts[1];
+    const block2 = parts[2];
+    
+    if (block1.length !== 4 || block2.length !== 4) return false;
+    
+    let sum = 0;
+    for (let char of block1 + block2) {
+        sum += char.charCodeAt(0);
+    }
+    return sum % 10 === 7;
+}
+
 function activate(context) {
     console.log('AG Notify extension is now active!');
     extensionPath = context.extensionPath;
@@ -18,11 +44,16 @@ function activate(context) {
     createStatusBarItem(context);
     setupPollingWatcher(context);
     
+    // Check premium status and show support prompt every 5 days for non-premium users
+    checkPremiumStatusAndPrompt(context);
+    
     // Register commands
     const toggleCmd = vscode.commands.registerCommand('agNotify.toggle', async () => {
         const config = vscode.workspace.getConfiguration('agNotify');
         const enabled = config.get('enabled', true);
         const completeEnabled = config.get('soundOnComplete', true);
+        const licenseKey = config.get('premiumLicenseKey', '');
+        const isPremium = validateLicenseKey(licenseKey);
         
         const items = [
             {
@@ -44,6 +75,11 @@ function activate(context) {
                 label: "$(play) Play Test Completion Sound",
                 description: "Test your currently set completion chime",
                 action: 'test_complete'
+            },
+            {
+                label: isPremium ? "✨ Premium Status: ACTIVE" : "🎁 Unlock Premium Feature Pack...",
+                description: isPremium ? "Thank you for supporting the project!" : "Enter your premium license key",
+                action: 'premium_license'
             }
         ];
         
@@ -61,6 +97,8 @@ function activate(context) {
             vscode.window.showInformationMessage(`Completion sound alerts ${!completeEnabled ? 'ENABLED' : 'DISABLED'}.`);
         } else if (selection.action === 'test_complete') {
             playSoundDirectly(config.get('soundOnCompleteType', 'minimal_chime.wav'));
+        } else if (selection.action === 'premium_license') {
+            await promptForLicenseKey();
         } else if (selection.action === 'choose_complete') {
             const sounds = [
                 { label: "✨ Premium: Minimal Chime (Recommended)", description: "minimal_chime.wav" },
@@ -109,8 +147,13 @@ function activate(context) {
         playSoundDirectly(config.get('soundOnCompleteType', 'minimal_chime.wav'));
     });
     
+    const enterLicenseCmd = vscode.commands.registerCommand('agNotify.enterLicense', async () => {
+        await promptForLicenseKey();
+    });
+    
     context.subscriptions.push(toggleCmd);
     context.subscriptions.push(playTestCmd);
+    context.subscriptions.push(enterLicenseCmd);
     
     // Listen for config changes to update the status bar
     const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
@@ -138,13 +181,71 @@ function updateStatusBar() {
     
     const config = vscode.workspace.getConfiguration('agNotify');
     const enabled = config.get('enabled', true);
+    const licenseKey = config.get('premiumLicenseKey', '');
+    const isPremium = validateLicenseKey(licenseKey);
     
     if (enabled) {
-        statusBarItem.text = `$(bell) AG Notify`;
-        statusBarItem.tooltip = `AG Notify is active. Click to manage alerts.`;
+        if (isPremium) {
+            statusBarItem.text = `✨ AG Notify Premium`;
+            statusBarItem.tooltip = `AG Notify Premium is active! Thank you for your support! 💖`;
+        } else {
+            statusBarItem.text = `$(bell) AG Notify`;
+            statusBarItem.tooltip = `AG Notify is active. Click to manage alerts.`;
+        }
     } else {
         statusBarItem.text = `$(bell-slash) AG Notify: Muted`;
         statusBarItem.tooltip = `AG Notify is globally muted. Click to unmute.`;
+    }
+}
+
+async function promptForLicenseKey() {
+    const config = vscode.workspace.getConfiguration('agNotify');
+    const entered = await vscode.window.showInputBox({
+        prompt: "Enter your AG Notify Premium License Key (Format: AGN-XXXX-XXXX)",
+        placeHolder: "AGN-XXXX-XXXX"
+    });
+    
+    if (entered) {
+        if (validateLicenseKey(entered)) {
+            await config.update('premiumLicenseKey', entered.trim().toUpperCase(), vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage("✨ AG Notify Premium successfully activated! Thank you for your support! 💖");
+            updateStatusBar();
+        } else {
+            vscode.window.showErrorMessage("❌ Invalid license key. Please check and try again.");
+        }
+    }
+}
+
+function checkPremiumStatusAndPrompt(context) {
+    const config = vscode.workspace.getConfiguration('agNotify');
+    const licenseKey = config.get('premiumLicenseKey', '');
+    const isPremium = validateLicenseKey(licenseKey);
+    
+    if (isPremium) {
+        return; // Premium users enjoy a lifetime of zero ads!
+    }
+    
+    const lastAdTime = context.globalState.get('lastAdTime', 0);
+    const now = Date.now();
+    const fiveDaysInMs = 5 * 24 * 60 * 60 * 1000;
+    
+    if (now - lastAdTime > fiveDaysInMs) {
+        // Update last ad shown time immediately
+        context.globalState.update('lastAdTime', now);
+        
+        vscode.window.showInformationMessage(
+            "Enjoying AG Notify? Support the developer on Patreon/Lemon Squeezy to unlock exclusive features and get a Premium Badge! 💖",
+            "Support / Get Key",
+            "Enter License Key",
+            "Maybe Later"
+        ).then(async (selection) => {
+            if (selection === "Support / Get Key") {
+                // Link to Patreon/Gumroad
+                vscode.env.openExternal(vscode.Uri.parse("https://github.com/LyTblu7/AG-Notify#support--premium"));
+            } else if (selection === "Enter License Key") {
+                await promptForLicenseKey();
+            }
+        });
     }
 }
 

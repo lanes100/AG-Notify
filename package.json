@@ -34,6 +34,11 @@
           "type": "boolean",
           "default": true,
           "description": "Global toggle to enable or disable all sound notifications."
+        },
+        "agNotify.premiumLicenseKey": {
+          "type": "string",
+          "default": "",
+          "description": "Patreon/Lemon Squeezy Premium License Key (AGN-XXXX-XXXX) to unlock premium features and remove ads."
         }
       }
     },
@@ -45,6 +50,10 @@
       {
         "command": "agNotify.playTest",
         "title": "AG Notify: Play Test Sound"
+      },
+      {
+        "command": "agNotify.enterLicense",
+        "title": "AG Notify: Enter Premium License Key"
       }
     ]
   }
