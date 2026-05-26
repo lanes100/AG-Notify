@@ -10,6 +10,7 @@ let statusBarItem;
 let conversationCheckInterval = null;
 let isStartupPhase = true;
 let extensionPath = ''; // Store extension directory path dynamically
+let extensionContext = null; // Store context reference globally
 
 /**
  * Validates the offline premium license key mathematically.
@@ -40,6 +41,7 @@ function validateLicenseKey(key) {
 function activate(context) {
     console.log('AG Notify extension is now active!');
     extensionPath = context.extensionPath;
+    extensionContext = context;
     
     createStatusBarItem(context);
     setupPollingWatcher(context);
@@ -174,6 +176,11 @@ function activate(context) {
         });
     });
     
+    const openDashboardCmd = vscode.commands.registerCommand('agNotify.openDashboard', () => {
+        openDashboard(context);
+    });
+    
+    context.subscriptions.push(openDashboardCmd);
     context.subscriptions.push(toggleCmd);
     context.subscriptions.push(playTestCmd);
     context.subscriptions.push(enterLicenseCmd);
@@ -194,7 +201,7 @@ function deactivate() {
 
 function createStatusBarItem(context) {
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.command = 'agNotify.toggle';
+    statusBarItem.command = 'agNotify.openDashboard';
     updateStatusBar();
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
@@ -415,6 +422,12 @@ function playSound(type) {
     if (type === 'complete') {
         const completeEnabled = config.get('soundOnComplete', true);
         if (!completeEnabled) return;
+        
+        if (extensionContext) {
+            const count = extensionContext.globalState.get('totalChimesPlayed', 0);
+            extensionContext.globalState.update('totalChimesPlayed', count + 1);
+        }
+        
         playSoundDirectly(config.get('soundOnCompleteType', 'notification_pluck.mp3'));
     }
 }
@@ -463,8 +476,915 @@ function playSoundDirectly(sound) {
         const cmd = builtInSounds.includes(sound)
             ? `mpg123 "${soundPath}" || paplay "${soundPath}" || play "${soundPath}" || aplay "${soundPath}"`
             : 'aplay /usr/share/sounds/alsa/Front_Center.wav';
+            : 'aplay /usr/share/sounds/alsa/Front_Center.wav';
         exec(cmd);
     }
+}
+
+function openDashboard(context) {
+    const panel = vscode.window.createWebviewPanel(
+        'agNotifyDashboard',
+        'AG Notify - Settings & Dashboard',
+        vscode.ViewColumn.One,
+        {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [vscode.Uri.file(context.extensionPath)]
+        }
+    );
+
+    const iconUri = panel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'icon.png')));
+
+    function getWebviewContent() {
+        const config = vscode.workspace.getConfiguration('agNotify');
+        const enabled = config.get('enabled', true);
+        const completeEnabled = config.get('soundOnComplete', true);
+        const activeSound = config.get('soundOnCompleteType', 'notification_pluck.mp3');
+        const licenseKey = config.get('premiumLicenseKey', '');
+        const isPremium = validateLicenseKey(licenseKey);
+        const totalChimes = context.globalState.get('totalChimesPlayed', 0);
+
+        const builtInSounds = [
+            { id: 'notification_pluck.mp3', name: '✨ Pluck Chime (Premium)', desc: 'Soft and premium pluck alert' },
+            { id: 'smooth_stereo.mp3', name: '✨ Smooth Stereo (Premium)', desc: 'Wide stereo high-end chime' },
+            { id: 'completed_alert.mp3', name: '✨ Task Completed (Premium)', desc: 'Rich synthesizer chime' },
+            { id: 'intro_bell.mp3', name: '✨ Intro Sound Bell (Premium)', desc: 'Clear corporate-style bell' },
+            { id: 'best_notification_1.mp3', name: '✨ Notification 1 (Premium)', desc: 'Optimized developer chime 1' },
+            { id: 'best_notification_2.mp3', name: '✨ Notification 2 (Premium)', desc: 'Optimized developer chime 2' },
+            { id: 'message_chime.mp3', name: '✨ Message Chime (Premium)', desc: 'Elegant alert for incoming chats' },
+            { id: 'ding.mp3', name: '✨ Elegant Ding (Premium)', desc: 'Short classic premium bell sound' },
+            { id: 'notification_alert.mp3', name: '✨ Notification Alert (Premium)', desc: 'Medium pitch notification' },
+            { id: 'digital_alert.mp3', name: '✨ Digital Alert (Premium)', desc: 'High tech synth wave chime' },
+            { id: 'Windows Notify System Generic.wav', name: 'Win11 Notify', desc: 'Modern Windows 11 default alert' },
+            { id: 'Windows Information Bar.wav', name: 'Win11 Quiet Note', desc: 'Soft and quiet notification' },
+            { id: 'notify.wav', name: 'Chirp', desc: 'Short notification chirp' },
+            { id: 'chimes.wav', name: 'Classic Chimes', desc: 'Classic chimes sound effect' },
+            { id: 'Windows Background.wav', name: 'Soft Bubble', desc: 'Relaxing ambient bubble pop' },
+            { id: 'Windows Message Nudge.wav', name: 'Nudge Sound', desc: 'Energetic nudge notification' },
+            { id: 'tada.wav', name: 'Tada Fanfare', desc: 'Classic retro tada celebration' },
+            { id: 'Speech On.wav', name: 'Speech On Chirp', desc: 'Microphone speech on alert' }
+        ];
+
+        return `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>AG Notify Dashboard</title>
+            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+            <style>
+                :root {
+                    --bg-dark: #0f0f15;
+                    --card-bg: rgba(30, 30, 46, 0.7);
+                    --border-color: rgba(255, 255, 255, 0.08);
+                    --text-primary: #f1f1f7;
+                    --text-secondary: #9499b3;
+                    --accent-blue: #007acc;
+                    --accent-cyan: #00e5ff;
+                    --accent-gold: linear-gradient(135deg, #ffd700, #ffa500);
+                    --accent-gold-glow: rgba(255, 215, 0, 0.3);
+                }
+
+                * {
+                    box-sizing: border-box;
+                    margin: 0;
+                    padding: 0;
+                    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                }
+
+                body {
+                    background-color: var(--bg-dark);
+                    color: var(--text-primary);
+                    padding: 30px;
+                    display: flex;
+                    justify-content: center;
+                    min-height: 100vh;
+                    overflow-y: auto;
+                }
+
+                /* Scrollbar Styles */
+                ::-webkit-scrollbar {
+                    width: 8px;
+                }
+                ::-webkit-scrollbar-track {
+                    background: rgba(0, 0, 0, 0.2);
+                }
+                ::-webkit-scrollbar-thumb {
+                    background: rgba(255, 255, 255, 0.1);
+                    border-radius: 4px;
+                }
+                ::-webkit-scrollbar-thumb:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                }
+
+                .container {
+                    width: 100%;
+                    max-width: 1100px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 25px;
+                }
+
+                /* Brand Header */
+                .header-card {
+                    background: linear-gradient(135deg, rgba(35, 35, 55, 0.8), rgba(20, 20, 30, 0.8));
+                    border: 1px solid var(--border-color);
+                    border-radius: 20px;
+                    padding: 25px 35px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    backdrop-filter: blur(12px);
+                    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+                }
+
+                .brand {
+                    display: flex;
+                    align-items: center;
+                    gap: 20px;
+                }
+
+                .brand-img {
+                    width: 70px;
+                    height: 70px;
+                    border-radius: 16px;
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+                }
+
+                .brand-info h1 {
+                    font-size: 26px;
+                    font-weight: 800;
+                    letter-spacing: 0.5px;
+                    background: linear-gradient(90deg, #fff, #b9bbdf);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                }
+
+                .brand-info p {
+                    font-size: 14px;
+                    color: var(--text-secondary);
+                    margin-top: 4px;
+                }
+
+                .badge {
+                    padding: 8px 16px;
+                    border-radius: 30px;
+                    font-size: 13px;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+
+                .badge.free {
+                    background: rgba(255, 255, 255, 0.08);
+                    color: var(--text-secondary);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                }
+
+                .badge.premium {
+                    background: var(--accent-gold);
+                    color: #000;
+                    box-shadow: 0 0 15px var(--accent-gold-glow);
+                }
+
+                /* Stats Row */
+                .stats-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                    gap: 20px;
+                }
+
+                .stat-card {
+                    background: var(--card-bg);
+                    border: 1px solid var(--border-color);
+                    border-radius: 16px;
+                    padding: 20px 24px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                    backdrop-filter: blur(8px);
+                    transition: transform 0.2s ease, border-color 0.2s ease;
+                }
+
+                .stat-card:hover {
+                    transform: translateY(-2px);
+                    border-color: rgba(255, 255, 255, 0.15);
+                }
+
+                .stat-label {
+                    font-size: 12px;
+                    color: var(--text-secondary);
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    font-weight: 600;
+                }
+
+                .stat-val {
+                    font-size: 28px;
+                    font-weight: 800;
+                    color: var(--text-primary);
+                }
+
+                .stat-val.active-sound {
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #5dcdfc;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                /* Core Settings & Toggles */
+                .main-layout {
+                    display: grid;
+                    grid-template-columns: 2fr 1fr;
+                    gap: 25px;
+                }
+
+                @media (max-width: 900px) {
+                    .main-layout {
+                        grid-template-columns: 1fr;
+                    }
+                }
+
+                .settings-pane {
+                    background: var(--card-bg);
+                    border: 1px solid var(--border-color);
+                    border-radius: 20px;
+                    padding: 30px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 25px;
+                }
+
+                .section-title {
+                    font-size: 18px;
+                    font-weight: 700;
+                    margin-bottom: 5px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .toggle-group {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 15px;
+                }
+
+                .toggle-row {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 15px 20px;
+                    background: rgba(0, 0, 0, 0.2);
+                    border-radius: 12px;
+                    border: 1px solid rgba(255, 255, 255, 0.03);
+                }
+
+                .toggle-info h3 {
+                    font-size: 15px;
+                    font-weight: 600;
+                }
+
+                .toggle-info p {
+                    font-size: 12px;
+                    color: var(--text-secondary);
+                    margin-top: 3px;
+                }
+
+                /* Toggle Switch CSS */
+                .switch {
+                    position: relative;
+                    display: inline-block;
+                    width: 50px;
+                    height: 26px;
+                }
+
+                .switch input {
+                    opacity: 0;
+                    width: 0;
+                    height: 0;
+                }
+
+                .slider {
+                    position: absolute;
+                    cursor: pointer;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background-color: rgba(255, 255, 255, 0.1);
+                    transition: .4s;
+                    border-radius: 34px;
+                    border: 1px solid rgba(255, 255, 255, 0.05);
+                }
+
+                .slider:before {
+                    position: absolute;
+                    content: "";
+                    height: 18px;
+                    width: 18px;
+                    left: 3px;
+                    bottom: 3px;
+                    background-color: var(--text-primary);
+                    transition: .3s;
+                    border-radius: 50%;
+                }
+
+                input:checked + .slider {
+                    background-color: var(--accent-blue);
+                }
+
+                input:checked + .slider:before {
+                    transform: translateX(24px);
+                    background-color: #fff;
+                }
+
+                /* Sound Library Grid */
+                .sounds-section {
+                    margin-top: 10px;
+                }
+
+                .sounds-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                    gap: 15px;
+                    margin-top: 15px;
+                }
+
+                .sound-card {
+                    background: rgba(0, 0, 0, 0.18);
+                    border: 1px solid rgba(255, 255, 255, 0.04);
+                    border-radius: 14px;
+                    padding: 16px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    gap: 12px;
+                    transition: all 0.2s ease;
+                }
+
+                .sound-card.premium-locked {
+                    opacity: 0.65;
+                    border-style: dashed;
+                }
+
+                .sound-card.active {
+                    background: rgba(0, 122, 204, 0.1);
+                    border-color: rgba(0, 122, 204, 0.4);
+                    box-shadow: 0 0 10px rgba(0, 122, 204, 0.15);
+                }
+
+                .sound-info h4 {
+                    font-size: 14px;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+
+                .sound-info p {
+                    font-size: 11px;
+                    color: var(--text-secondary);
+                    margin-top: 4px;
+                }
+
+                .sound-actions {
+                    display: flex;
+                    gap: 8px;
+                }
+
+                .btn {
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    border: none;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 5px;
+                }
+
+                .btn-play {
+                    background: rgba(255, 255, 255, 0.06);
+                    color: var(--text-primary);
+                    flex: 1;
+                }
+
+                .btn-play:hover {
+                    background: rgba(255, 255, 255, 0.12);
+                }
+
+                .btn-use {
+                    background: var(--accent-blue);
+                    color: #fff;
+                    flex: 1.5;
+                }
+
+                .btn-use:hover {
+                    background: #0088e0;
+                }
+
+                .sound-card.active .btn-use {
+                    background: rgba(0, 229, 255, 0.2);
+                    color: var(--accent-cyan);
+                    cursor: default;
+                    pointer-events: none;
+                }
+
+                /* Sidebar Panel */
+                .sidebar-pane {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 20px;
+                }
+
+                .side-card {
+                    background: var(--card-bg);
+                    border: 1px solid var(--border-color);
+                    border-radius: 20px;
+                    padding: 24px;
+                    backdrop-filter: blur(8px);
+                }
+
+                /* License Key Form */
+                .license-form {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    margin-top: 15px;
+                }
+
+                .license-input-wrapper {
+                    position: relative;
+                }
+
+                .license-input {
+                    width: 100%;
+                    padding: 12px 14px;
+                    background: rgba(0, 0, 0, 0.3);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 10px;
+                    color: var(--text-primary);
+                    font-size: 14px;
+                    font-weight: 600;
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
+                    transition: border-color 0.2s ease;
+                }
+
+                .license-input:focus {
+                    outline: none;
+                    border-color: var(--accent-cyan);
+                }
+
+                .btn-activate {
+                    background: var(--accent-gold);
+                    color: #000;
+                    font-weight: 700;
+                    padding: 12px;
+                    width: 100%;
+                    border-radius: 10px;
+                    font-size: 13px;
+                }
+
+                .btn-activate:hover {
+                    opacity: 0.9;
+                    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+                }
+
+                /* Support & Sponsors section */
+                .sponsor-btn {
+                    padding: 12px;
+                    border-radius: 10px;
+                    font-size: 13px;
+                    font-weight: 700;
+                    text-decoration: none;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    transition: transform 0.2s ease, opacity 0.2s ease;
+                    margin-top: 10px;
+                    width: 100%;
+                }
+
+                .sponsor-btn:hover {
+                    transform: translateY(-1px);
+                }
+
+                .btn-monobank {
+                    background: #e9232c;
+                    color: #fff;
+                }
+
+                .btn-patreon {
+                    background: #f96854;
+                    color: #fff;
+                }
+
+                .btn-lemonsqueezy {
+                    background: #eef2f6;
+                    color: #000;
+                    border: 1px solid rgba(0,0,0,0.1);
+                }
+
+                .sponsor-desc {
+                    font-size: 12px;
+                    color: var(--text-secondary);
+                    line-height: 1.5;
+                    margin-top: 10px;
+                    text-align: center;
+                }
+
+                /* Feedback Messages */
+                .toast {
+                    padding: 10px 14px;
+                    border-radius: 8px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    text-align: center;
+                    display: none;
+                    margin-top: 10px;
+                }
+                .toast.success {
+                    background: rgba(46, 204, 113, 0.15);
+                    color: #2ecc71;
+                    border: 1px solid rgba(46, 204, 113, 0.3);
+                }
+                .toast.error {
+                    background: rgba(231, 76, 60, 0.15);
+                    color: #e74c3c;
+                    border: 1px solid rgba(231, 76, 60, 0.3);
+                }
+
+                .custom-sound-box {
+                    display: flex;
+                    gap: 10px;
+                    margin-top: 15px;
+                }
+                .custom-sound-box input {
+                    flex: 1;
+                    background: rgba(0, 0, 0, 0.3);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    padding: 10px;
+                    border-radius: 8px;
+                    color: #fff;
+                    font-size: 12px;
+                }
+                .custom-sound-box button {
+                    background: var(--accent-blue);
+                    color: #fff;
+                    border: none;
+                    padding: 0 15px;
+                    border-radius: 8px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    cursor: pointer;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <!-- Branding Header -->
+                <div class="header-card">
+                    <div class="brand">
+                        <img class="brand-img" src="${iconUri}" alt="AG Notify Icon">
+                        <div class="brand-info">
+                            <h1>AG Notify</h1>
+                            <p>Premium task completion sound orchestrator for Antigravity Agent</p>
+                        </div>
+                    </div>
+                    <div id="licenseBadge" class="badge ${isPremium ? 'premium' : 'free'}">
+                        ${isPremium ? '✨ Premium Active' : '🎁 Free Version'}
+                    </div>
+                </div>
+
+                <!-- Stats Summary Row -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Total Alerts Played</span>
+                        <span id="totalChimesPlayed" class="stat-val">${totalChimes}</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Current Chime Path</span>
+                        <span id="currentChimeName" class="stat-val active-sound">${activeSound}</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Status</span>
+                        <span id="premiumStatusText" class="stat-val" style="font-size: 20px; color: ${isPremium ? '#ffd700' : 'var(--text-secondary)'}">
+                            ${isPremium ? '✨ Premium Unlocked' : 'Ad-Supported Free'}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="main-layout">
+                    <!-- Main settings layout -->
+                    <div class="settings-pane">
+                        <div class="section-title">🛡️ Notification Controllers</div>
+                        <div class="toggle-group">
+                            <div class="toggle-row">
+                                <div class="toggle-info">
+                                    <h3>Enable Notification Sound Alerts</h3>
+                                    <p>Global switch to activate or mute all notification alerts.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="globalToggle" ${enabled ? 'checked' : ''} onchange="toggleSetting('enabled', this.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="toggle-row">
+                                <div class="toggle-info">
+                                    <h3>Play Sound on Task Completion</h3>
+                                    <p>Play chosen chime when Antigravity Agent completes its final response.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="completeToggle" ${completeEnabled ? 'checked' : ''} onchange="toggleSetting('soundOnComplete', this.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Sound Library Grid -->
+                        <div class="sounds-section">
+                            <div class="section-title">🎵 Notification Sound Library</div>
+                            <p style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;">
+                                Explore built-in premium MP3 alerts. Select "Set Active" to use it as your default completion alert.
+                            </p>
+                            
+                            <div class="sounds-grid">
+                                ${builtInSounds.map(s => {
+                                    const isSelected = activeSound === s.id;
+                                    const isPremiumSound = s.id.endsWith('.mp3');
+                                    const isLocked = isPremiumSound && !isPremium;
+                                    return `
+                                    <div class="sound-card ${isSelected ? 'active' : ''} ${isLocked ? 'premium-locked' : ''}" id="sound-${s.id}">
+                                        <div class="sound-info">
+                                            <h4>
+                                                ${s.name}
+                                                ${isLocked ? '<span style="color:#ffd700; font-size:10px;">[Premium Locked]</span>' : ''}
+                                            </h4>
+                                            <p>${s.desc}</p>
+                                        </div>
+                                        <div class="sound-actions">
+                                            <button class="btn btn-play" onclick="previewSound('${s.id}')">
+                                                ▶ Play
+                                            </button>
+                                            <button class="btn btn-use" onclick="useSound('${s.id}', ${isLocked})">
+                                                ${isSelected ? 'Active' : 'Set Active'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <!-- Custom sound selector -->
+                        <div class="custom-sound-section" style="margin-top: 15px;">
+                            <div class="section-title" style="font-size: 15px;">📁 Use Custom Sound File Path</div>
+                            <div class="custom-sound-box">
+                                <input type="text" id="customSoundPath" placeholder="C:\\Path\\To\\CustomSound.wav or .mp3" value="${!builtInSounds.some(s => s.id === activeSound) ? activeSound : ''}">
+                                <button onclick="saveCustomSound()">Save Path</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar content: license keys, checkout URLs -->
+                    <div class="sidebar-pane">
+                        <div class="side-card">
+                            <h3 class="section-title" id="sidebarTitle">${isPremium ? '✨ Premium Active' : '🎁 Unlock Premium Feature Pack'}</h3>
+                            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px;">
+                                Get premium keys, remove promotional pop-ups, and enjoy 10 high-fidelity MP3 soundscapes!
+                            </p>
+
+                            <div id="licenseBox" style="display: ${isPremium ? 'none' : 'block'};" class="license-form">
+                                <div class="license-input-wrapper">
+                                    <input type="text" id="licenseKeyInput" class="license-input" placeholder="AGN-XXXX-XXXX" value="${licenseKey}">
+                                </div>
+                                <button class="btn btn-activate" onclick="activateLicense()">Activate License Key</button>
+                            </div>
+
+                            <div id="toastMessage" class="toast"></div>
+
+                            <div id="premiumSponsorDetails" style="display: ${isPremium ? 'block' : 'none'}; margin-top: 15px;">
+                                <p style="font-size: 13px; color: #2ecc71; font-weight: 600;">
+                                    Thank you! Your premium status is active. All weekly ad notifications have been permanently disabled. 💖
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="side-card">
+                            <h3 class="section-title">💖 Support & Sponsors</h3>
+                            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px;">
+                                Support AG Notify to get valid mathematical license keys instantly.
+                            </p>
+
+                            <a href="https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322" class="sponsor-btn btn-lemonsqueezy" target="_blank">
+                                🍋 Lemon Squeezy Checkout (~$3.00)
+                            </a>
+
+                            <a href="https://patreon.com/LyTblu7?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink" class="sponsor-btn btn-patreon" target="_blank">
+                                🧡 Patreon Support ($1.99/mo)
+                            </a>
+
+                            <a href="https://send.monobank.ua/jar/5Lpdn6ThL" class="sponsor-btn btn-monobank" target="_blank">
+                                🐱 Monobank Jar (Укрианский банка)
+                            </a>
+
+                            <p class="sponsor-desc">
+                                Offline license validation key is delivered instantly on Lemon Squeezy checkout & Patreon tier pages!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                const vscode = acquireVsCodeApi();
+
+                function toggleSetting(key, value) {
+                    vscode.postMessage({
+                        command: 'updateSetting',
+                        key: key,
+                        value: value
+                    });
+                }
+
+                function previewSound(soundId) {
+                    vscode.postMessage({
+                        command: 'previewSound',
+                        sound: soundId
+                    });
+                }
+
+                function useSound(soundId, isLocked) {
+                    if (isLocked) {
+                        showToast("❌ This sound is locked. Activate a Premium License Key to unlock all premium MP3 sounds!", "error");
+                        return;
+                    }
+                    vscode.postMessage({
+                        command: 'useSound',
+                        sound: soundId
+                    });
+                }
+
+                function saveCustomSound() {
+                    const customPath = document.getElementById('customSoundPath').value.trim();
+                    if (!customPath) return;
+                    vscode.postMessage({
+                        command: 'useSound',
+                        sound: customPath
+                    });
+                }
+
+                function activateLicense() {
+                    const key = document.getElementById('licenseKeyInput').value.trim();
+                    if (!key) {
+                        showToast("❌ Please enter a license key.", "error");
+                        return;
+                    }
+                    vscode.postMessage({
+                        command: 'activateLicense',
+                        key: key
+                    });
+                }
+
+                function showToast(message, type) {
+                    const toast = document.getElementById('toastMessage');
+                    toast.innerText = message;
+                    toast.className = 'toast ' + type;
+                    toast.style.display = 'block';
+                    setTimeout(() => {
+                        toast.style.display = 'none';
+                    }, 5000);
+                }
+
+                // Handle messages sent from the extension
+                window.addEventListener('message', event => {
+                    const message = event.data;
+                    switch (message.command) {
+                        case 'licenseActivated':
+                            // Real-time page upgrade animation
+                            document.getElementById('licenseBadge').className = 'badge premium';
+                            document.getElementById('licenseBadge').innerText = '✨ Premium Active';
+                            document.getElementById('premiumStatusText').innerText = '✨ Premium Unlocked';
+                            document.getElementById('premiumStatusText').style.color = '#ffd700';
+                            document.getElementById('sidebarTitle').innerText = '✨ Premium Active';
+                            document.getElementById('licenseBox').style.display = 'none';
+                            document.getElementById('premiumSponsorDetails').style.display = 'block';
+                            
+                            // Unlock all locked premium cards in real-time
+                            const cards = document.querySelectorAll('.sound-card');
+                            cards.forEach(card => {
+                                card.classList.remove('premium-locked');
+                                const lockSpan = card.querySelector('span');
+                                if (lockSpan && lockSpan.innerText.includes('Premium Locked')) {
+                                    lockSpan.remove();
+                                }
+                                // Fix use buttons that might have been locked
+                                const useBtn = card.querySelector('.btn-use');
+                                if (useBtn) {
+                                    const soundId = card.id.replace('sound-', '');
+                                    useBtn.setAttribute('onclick', 'useSound("' + soundId + '", false)');
+                                }
+                            });
+
+                            showToast("✨ Premium license successfully activated! Enjoy your premium sounds!", "success");
+                            break;
+                        case 'licenseFailed':
+                            showToast("❌ Invalid license key. Please check the spelling.", "error");
+                            break;
+                        case 'updateChimeStats':
+                            document.getElementById('totalChimesPlayed').innerText = message.count;
+                            break;
+                        case 'soundChanged':
+                            // Update active states
+                            document.querySelectorAll('.sound-card').forEach(card => {
+                                card.classList.remove('active');
+                                const btnUse = card.querySelector('.btn-use');
+                                if (btnUse) {
+                                    btnUse.innerText = 'Set Active';
+                                }
+                            });
+                            
+                            const activeCard = document.getElementById('sound-' + message.sound);
+                            if (activeCard) {
+                                activeCard.classList.add('active');
+                                const activeUseBtn = activeCard.querySelector('.btn-use');
+                                if (activeUseBtn) {
+                                    activeUseBtn.innerText = 'Active';
+                                }
+                            }
+                            
+                            document.getElementById('currentChimeName').innerText = message.sound;
+                            break;
+                    }
+                });
+            </script>
+        </body>
+        </html>`;
+    }
+
+    panel.webview.html = getWebviewContent();
+
+    // Listen for events in the Webview panel
+    panel.webview.onDidReceiveMessage(
+        async message => {
+            const config = vscode.workspace.getConfiguration('agNotify');
+            switch (message.command) {
+                case 'updateSetting':
+                    await config.update(message.key, message.value, vscode.ConfigurationTarget.Global);
+                    updateStatusBar();
+                    break;
+                case 'previewSound':
+                    playSoundDirectly(message.sound);
+                    break;
+                case 'useSound':
+                    await config.update('soundOnCompleteType', message.sound, vscode.ConfigurationTarget.Global);
+                    updateStatusBar();
+                    panel.webview.postMessage({
+                        command: 'soundChanged',
+                        sound: message.sound
+                    });
+                    break;
+                case 'activateLicense':
+                    if (validateLicenseKey(message.key)) {
+                        await config.update('premiumLicenseKey', message.key.trim().toUpperCase(), vscode.ConfigurationTarget.Global);
+                        updateStatusBar();
+                        panel.webview.postMessage({ command: 'licenseActivated' });
+                    } else {
+                        panel.webview.postMessage({ command: 'licenseFailed' });
+                    }
+                    break;
+            }
+        },
+        undefined,
+        context.subscriptions
+    );
+
+    // Refresh stats when the panel is focused
+    panel.onDidChangeViewState(
+        () => {
+            if (panel.visible) {
+                const totalChimes = context.globalState.get('totalChimesPlayed', 0);
+                panel.webview.postMessage({
+                    command: 'updateChimeStats',
+                    count: totalChimes
+                });
+            }
+        },
+        undefined,
+        context.subscriptions
+    );
 }
 
 module.exports = {

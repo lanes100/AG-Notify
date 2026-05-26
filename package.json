@@ -48,6 +48,10 @@
     },
     "commands": [
       {
+        "command": "agNotify.openDashboard",
+        "title": "AG Notify: Open Settings Dashboard"
+      },
+      {
         "command": "agNotify.toggle",
         "title": "AG Notify: Toggle Sound Notifications"
       },
