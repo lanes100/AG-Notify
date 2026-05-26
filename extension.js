@@ -273,6 +273,18 @@ function activate(context) {
     const enterLicenseCmd = vscode.commands.registerCommand('agNotify.enterLicense', async () => {
         await promptForLicenseKey();
     });
+
+    const resetLicenseCmd = vscode.commands.registerCommand('agNotify.resetLicense', async () => {
+        const config = vscode.workspace.getConfiguration('agNotify');
+        await config.update('premiumLicenseKey', '', vscode.ConfigurationTarget.Global);
+        if (extensionContext) {
+            extensionContext.globalState.update('premiumActivated', false);
+            extensionContext.globalState.update('premiumMachineId', '');
+            extensionContext.globalState.update('premiumLastVerified', null);
+        }
+        vscode.window.showInformationMessage("AG Notify: Premium license status and cache have been successfully reset.");
+        updateStatusBar();
+    });
     
     // Test command to force trigger the promo message
     const testPromoCmd = vscode.commands.registerCommand('agNotify.testPromo', () => {
@@ -298,6 +310,7 @@ function activate(context) {
     context.subscriptions.push(toggleCmd);
     context.subscriptions.push(playTestCmd);
     context.subscriptions.push(enterLicenseCmd);
+    context.subscriptions.push(resetLicenseCmd);
     context.subscriptions.push(testPromoCmd);
     
     // Listen for config changes to update the status bar
@@ -618,6 +631,15 @@ function playSound(type) {
 }
 
 function playSoundDirectly(sound) {
+    // Safety fallback: if it is a premium sound but the user doesn't have an active premium license,
+    // force reset to the default free pluck chime in both runtime and settings.
+    const isPremiumSound = sound.endsWith('.mp3') && sound !== 'notification_pluck.mp3';
+    if (isPremiumSound && !isPremiumActive()) {
+        sound = 'notification_pluck.mp3';
+        const config = vscode.workspace.getConfiguration('agNotify');
+        config.update('soundOnCompleteType', 'notification_pluck.mp3', vscode.ConfigurationTarget.Global);
+    }
+
     const platform = process.platform;
     const builtInSounds = [
         'notification_pluck.mp3',
@@ -710,9 +732,18 @@ function openDashboard(context) {
         const config = vscode.workspace.getConfiguration('agNotify');
         const enabled = config.get('enabled', true);
         const completeEnabled = config.get('soundOnComplete', true);
-        const activeSound = config.get('soundOnCompleteType', 'notification_pluck.mp3');
-        const escapedActiveSound = activeSound.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const isPremium = isPremiumActive();
+        
+        let activeSound = config.get('soundOnCompleteType', 'notification_pluck.mp3');
+        
+        // Safety validation: if user has a premium sound selected but premium is inactive, force fallback
+        const isPremiumSound = activeSound.endsWith('.mp3') && activeSound !== 'notification_pluck.mp3';
+        if (isPremiumSound && !isPremium) {
+            activeSound = 'notification_pluck.mp3';
+            config.update('soundOnCompleteType', 'notification_pluck.mp3', vscode.ConfigurationTarget.Global);
+        }
+        
+        const escapedActiveSound = activeSound.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const licenseKey = config.get('premiumLicenseKey', '');
         const totalChimes = context.globalState.get('totalChimesPlayed', 0);
 

@@ -6,7 +6,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || "
 
 const LEMON_SQUEEZY_SECRET = Deno.env.get('LEMON_SQUEEZY_WEBHOOK_SECRET') || ""
 const PATREON_SECRET = Deno.env.get('PATREON_WEBHOOK_SECRET') || ""
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ""
+const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY') || ""
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -61,25 +61,33 @@ async function verifyHmac(secret: string, signature: string, rawBody: string): P
   return await crypto.subtle.verify("HMAC", key, signatureBytes, dataBytes);
 }
 
-// Send email with license key via Resend
+// Send email with license key via Brevo
 async function sendLicenseEmail(email: string, licenseKey: string): Promise<boolean> {
-  if (!RESEND_API_KEY) {
-    console.warn("Resend API Key is not set. Skipping email delivery.");
+  if (!BREVO_API_KEY) {
+    console.warn("Brevo API Key is not set. Skipping email delivery.");
     return false;
   }
 
   try {
-    const response = await fetch("https://api.resend.com/emails", {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${RESEND_API_KEY}`
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": BREVO_API_KEY
       },
       body: JSON.stringify({
-        from: "AG Notify <onboarding@resend.dev>",
-        to: [email],
+        sender: {
+          name: "AG Notify Premium",
+          email: "myshopandmyl1fe@gmail.com"
+        },
+        to: [
+          {
+            email: email
+          }
+        ],
         subject: "Your AG Notify Premium License Key! 🔑",
-        html: `
+        htmlContent: `
           <div style="font-family: sans-serif; padding: 20px; color: #333;">
             <h2>Thank you for supporting AG Notify! 💖</h2>
             <p>Your premium status has been successfully registered. Here is your license key to unlock all premium features and sounds:</p>
@@ -102,14 +110,14 @@ async function sendLicenseEmail(email: string, licenseKey: string): Promise<bool
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`Failed to send email via Resend: ${response.status} - ${errText}`);
+      console.error(`Failed to send email via Brevo: ${response.status} - ${errText}`);
       return false;
     }
 
-    console.log(`License key successfully emailed to ${email}`);
+    console.log(`License key successfully emailed to ${email} via Brevo`);
     return true;
   } catch (error) {
-    console.error("Error occurred while sending email:", error);
+    console.error("Error occurred while sending email via Brevo:", error);
     return false;
   }
 }
