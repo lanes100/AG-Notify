@@ -1249,7 +1249,7 @@ function openDashboard(context) {
 
                             <!-- Monobank & PayPal (One-time Coffee) -->
                             <div class="sponsor-item">
-                                <span class="sponsor-tag tag-one-time">☕ Tips (На каву)</span>
+                                <span class="sponsor-tag tag-one-time">☕ Tips</span>
                                 <a href="https://send.monobank.ua/jar/5Lpdn6ThL" class="sponsor-btn btn-monobank" target="_blank" style="margin-top: 4px;">
                                     🐱 Monobank Jar (На каву)
                                 </a>
