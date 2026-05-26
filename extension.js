@@ -1253,8 +1253,8 @@ function openDashboard(context) {
                                 <a href="https://send.monobank.ua/jar/5Lpdn6ThL" class="sponsor-btn btn-monobank" target="_blank" style="margin-top: 4px;">
                                     🐱 Monobank Jar (На каву)
                                 </a>
-                                <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=myshopandmyl1fe@gmail.com&currency_code=USD&item_name=AG-Notify%20Coffee%20Tip" class="sponsor-btn btn-paypal" target="_blank" style="margin-top: 4px;">
-                                    💙 Support via PayPal
+                                <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=myshopandmyl1fe@gmail.com&currency_code=USD&amount=3.00&item_name=AG-Notify%20Coffee%20Tip" class="sponsor-btn btn-paypal" target="_blank" style="margin-top: 4px;">
+                                    💙 Support via PayPal ($3.00)
                                 </a>
                                 <span class="sponsor-subtext">One-time voluntary support. Does not issue an automatic premium license key.</span>
                             </div>
