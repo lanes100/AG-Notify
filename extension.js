@@ -289,21 +289,21 @@ function activate(context) {
     // Test command to force trigger the promo message
     const testPromoCmd = vscode.commands.registerCommand('agNotify.testPromo', () => {
         vscode.window.showInformationMessage(
-            "Enjoying AG Notify? Open the Dashboard to preview premium sounds, get a lifetime key, or support the developer! 💖",
-            "Open Dashboard",
+            "Enjoying AG Notify? Open the Settings Dashboard to preview premium sounds, get a lifetime key, or support the developer! 💖",
+            "Open Settings",
             "Enter License Key",
-            "Maybe Later"
+            "Later"
         ).then(async (selection) => {
-            if (selection === "Open Dashboard") {
-                vscode.commands.executeCommand('agNotify.openDashboard');
+            if (selection === "Open Settings") {
+                vscode.commands.executeCommand('agNotify.openDashboard', 'sponsors');
             } else if (selection === "Enter License Key") {
-                await promptForLicenseKey();
+                vscode.commands.executeCommand('agNotify.openDashboard', 'license');
             }
         });
     });
     
-    const openDashboardCmd = vscode.commands.registerCommand('agNotify.openDashboard', () => {
-        openDashboard(context);
+    const openDashboardCmd = vscode.commands.registerCommand('agNotify.openDashboard', (target) => {
+        openDashboard(context, target);
     });
     
     context.subscriptions.push(openDashboardCmd);
@@ -390,34 +390,25 @@ async function promptForLicenseKey() {
 }
 
 function checkPremiumStatusAndPrompt(context) {
-    const config = vscode.workspace.getConfiguration('agNotify');
     const isPremium = isPremiumActive();
     
     if (isPremium) {
         return; // Premium users enjoy zero ads!
     }
     
-    const lastAdTime = context.globalState.get('lastAdTime', 0);
-    const now = Date.now();
-    const fiveDaysInMs = 5 * 24 * 60 * 60 * 1000;
-    
-    if (now - lastAdTime > fiveDaysInMs) {
-        // Update last ad shown time immediately
-        context.globalState.update('lastAdTime', now);
-        
-        vscode.window.showInformationMessage(
-            "Enjoying AG Notify? Open the Dashboard to preview premium sounds, get a lifetime key, or support the developer! 💖",
-            "Open Dashboard",
-            "Enter License Key",
-            "Maybe Later"
-        ).then(async (selection) => {
-            if (selection === "Open Dashboard") {
-                vscode.commands.executeCommand('agNotify.openDashboard');
-            } else if (selection === "Enter License Key") {
-                await promptForLicenseKey();
-            }
-        });
-    }
+    // Trigger immediately on every startup/new window for free users to maximize conversion rate
+    vscode.window.showInformationMessage(
+        "Enjoying AG Notify? Open the Settings Dashboard to preview premium sounds, get a lifetime key, or support the developer! 💖",
+        "Open Settings",
+        "Enter License Key",
+        "Later"
+    ).then(async (selection) => {
+        if (selection === "Open Settings") {
+            vscode.commands.executeCommand('agNotify.openDashboard', 'sponsors');
+        } else if (selection === "Enter License Key") {
+            vscode.commands.executeCommand('agNotify.openDashboard', 'license');
+        }
+    });
 }
 
 let setupRetries = 0;
@@ -714,7 +705,7 @@ function playSoundDirectly(sound) {
     }
 }
 
-function openDashboard(context) {
+function openDashboard(context, target) {
     const panel = vscode.window.createWebviewPanel(
         'agNotifyDashboard',
         'AG Notify - Settings & Dashboard',
@@ -1446,7 +1437,7 @@ function openDashboard(context) {
 
                     <!-- Sidebar content: license keys, checkout URLs -->
                     <div class="sidebar-pane">
-                        <div class="side-card">
+                        <div class="side-card" id="licenseSection">
                             <h3 class="section-title" id="sidebarTitle">${isPremium ? '✨ Premium Active' : '🎁 Unlock Premium Feature Pack'}</h3>
                             <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px;">
                                 Get premium keys, remove promotional pop-ups, and enjoy 10 high-fidelity MP3 soundscapes!
@@ -1468,7 +1459,7 @@ function openDashboard(context) {
                             </div>
                         </div>
 
-                        <div class="side-card">
+                        <div class="side-card" id="sponsorSection">
                             <h3 class="section-title">💖 Support & Sponsors</h3>
                             <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px;">
                                 Choose a convenient way to support the developer and activate premium features:
@@ -1635,7 +1626,34 @@ function openDashboard(context) {
                     }
                 });
 
-
+                // Auto-scroll target execution
+                window.addEventListener('DOMContentLoaded', () => {
+                    const target = "${target || ''}";
+                    if (target === 'sponsors') {
+                        const sEl = document.getElementById('sponsorSection');
+                        if (sEl) {
+                            setTimeout(() => {
+                                sEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                sEl.style.outline = '2px solid var(--accent-cyan)';
+                                sEl.style.transition = 'outline 0.5s';
+                                setTimeout(() => sEl.style.outline = 'none', 2000);
+                            }, 300);
+                        }
+                    } else if (target === 'license') {
+                        const lEl = document.getElementById('licenseSection');
+                        if (lEl) {
+                            setTimeout(() => {
+                                lEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                const input = document.getElementById('licenseKeyInput');
+                                if (input) {
+                                    input.focus();
+                                    input.style.boxShadow = '0 0 10px var(--accent-cyan)';
+                                    setTimeout(() => input.style.boxShadow = 'none', 2000);
+                                }
+                            }, 300);
+                        }
+                    }
+                });
             </script>
         </body>
         </html>`;
