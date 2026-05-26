@@ -995,6 +995,11 @@ function openDashboard(context) {
                     border: 1px solid rgba(0,0,0,0.1);
                 }
 
+                .btn-paypal {
+                    background: #003087;
+                    color: #fff;
+                }
+
                 .sponsor-desc {
                     font-size: 12px;
                     color: var(--text-secondary);
@@ -1242,11 +1247,14 @@ function openDashboard(context) {
                                 <span class="sponsor-subtext">Monthly recurring support for the "Premium Badge" tier. Key is available on your Patreon tier benefits page.</span>
                             </div>
 
-                            <!-- Monobank (One-time Coffee) -->
+                            <!-- Monobank & PayPal (One-time Coffee) -->
                             <div class="sponsor-item">
                                 <span class="sponsor-tag tag-one-time">☕ Tips (На каву)</span>
                                 <a href="https://send.monobank.ua/jar/5Lpdn6ThL" class="sponsor-btn btn-monobank" target="_blank" style="margin-top: 4px;">
                                     🐱 Monobank Jar (На каву)
+                                </a>
+                                <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=myshopandmyl1fe@gmail.com&currency_code=USD&item_name=AG-Notify%20Coffee%20Tip" class="sponsor-btn btn-paypal" target="_blank" style="margin-top: 4px;">
+                                    💙 Support via PayPal
                                 </a>
                                 <span class="sponsor-subtext">One-time voluntary support. Does not issue an automatic premium license key.</span>
                             </div>
