@@ -54,6 +54,10 @@
       {
         "command": "agNotify.enterLicense",
         "title": "AG Notify: Enter Premium License Key"
+      },
+      {
+        "command": "agNotify.testPromo",
+        "title": "AG Notify: [TEST] Show Premium Promo Prompt"
       }
     ]
   }

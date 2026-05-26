@@ -158,9 +158,26 @@ function activate(context) {
         await promptForLicenseKey();
     });
     
+    // Test command to force trigger the promo message
+    const testPromoCmd = vscode.commands.registerCommand('agNotify.testPromo', () => {
+        vscode.window.showInformationMessage(
+            "Enjoying AG Notify? Support the developer on Patreon/Lemon Squeezy to unlock exclusive features and get a Premium Badge! 💖",
+            "Support / Get Key",
+            "Enter License Key",
+            "Maybe Later"
+        ).then(async (selection) => {
+            if (selection === "Support / Get Key") {
+                vscode.env.openExternal(vscode.Uri.parse("https://github.com/LyTblu7/AG-Notify#support--premium"));
+            } else if (selection === "Enter License Key") {
+                await promptForLicenseKey();
+            }
+        });
+    });
+    
     context.subscriptions.push(toggleCmd);
     context.subscriptions.push(playTestCmd);
     context.subscriptions.push(enterLicenseCmd);
+    context.subscriptions.push(testPromoCmd);
     
     // Listen for config changes to update the status bar
     const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
