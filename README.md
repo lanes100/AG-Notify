@@ -53,8 +53,8 @@ Fine-tune your audio feedback directly in VS Code settings:
 
 This extension is completely free and open-source. If it has saved you hours of staring at the screen and improved your coding flow, please consider supporting the development!
 
-* **Buy Me a Coffee:** [**Support on BuyMeACoffee**](https://www.buymeacoffee.com/yourusername) *(Placeholder — replace with your link)*
-* **Monobank (Украина):** [**Донат на Банку**](https://send.monobank.ua/jar/yourjar) *(Placeholder — replace with your link)*
+* **Get Premium License Key:** [**Buy Premium for $3 / 120 UAH**](https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322)
+* **GitHub Repository:** [**ag-notify**](https://github.com/LyTblu7/AG-Notify)
 
 Your support keeps us building awesome, focus-saving developer tools!
 

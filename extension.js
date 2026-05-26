@@ -167,7 +167,7 @@ function activate(context) {
             "Maybe Later"
         ).then(async (selection) => {
             if (selection === "Support / Get Key") {
-                vscode.env.openExternal(vscode.Uri.parse("https://github.com/LyTblu7/AG-Notify#support--premium"));
+                vscode.env.openExternal(vscode.Uri.parse("https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322"));
             } else if (selection === "Enter License Key") {
                 await promptForLicenseKey();
             }
@@ -264,7 +264,7 @@ function checkPremiumStatusAndPrompt(context) {
             "Maybe Later"
         ).then(async (selection) => {
             if (selection === "Support / Get Key") {
-                vscode.env.openExternal(vscode.Uri.parse("https://github.com/LyTblu7/AG-Notify#support--premium"));
+                vscode.env.openExternal(vscode.Uri.parse("https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322"));
             } else if (selection === "Enter License Key") {
                 await promptForLicenseKey();
             }
