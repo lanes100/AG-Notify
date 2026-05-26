@@ -471,12 +471,14 @@ function playSoundDirectly(sound) {
             soundPath = path.join('C:\\Windows\\Media', soundPath);
         }
         
+        const escapedPath = soundPath.replace(/'/g, "''");
+        
         // Use PresentationCore MediaPlayer for native robust MP3 playback on Windows
         let psCommand;
         if (soundPath.endsWith('.mp3')) {
-            psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open('${soundPath}'); $player.Play(); Start-Sleep -s 5`;
+            psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open('${escapedPath}'); $player.Play(); Start-Sleep -s 5`;
         } else {
-            psCommand = `(New-Object Media.SoundPlayer '${soundPath}').PlaySync()`;
+            psCommand = `(New-Object Media.SoundPlayer '${escapedPath}').PlaySync()`;
         }
         
         exec(`powershell -c "${psCommand}"`, (error) => {
@@ -513,6 +515,7 @@ function openDashboard(context) {
         const enabled = config.get('enabled', true);
         const completeEnabled = config.get('soundOnComplete', true);
         const activeSound = config.get('soundOnCompleteType', 'notification_pluck.mp3');
+        const escapedActiveSound = activeSound.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const licenseKey = config.get('premiumLicenseKey', '');
         const isPremium = validateLicenseKey(licenseKey);
         const totalChimes = context.globalState.get('totalChimesPlayed', 0);
@@ -1178,7 +1181,7 @@ function openDashboard(context) {
                             <div class="sounds-grid">
                                 ${builtInSounds.map(s => {
                                     const isSelected = activeSound === s.id;
-                                    const isPremiumSound = s.id.endsWith('.mp3');
+                                    const isPremiumSound = s.id.endsWith('.mp3') && s.id !== 'notification_pluck.mp3';
                                     const isLocked = isPremiumSound && !isPremium;
                                     return `
                                     <div class="sound-card ${isSelected ? 'active' : ''} ${isLocked ? 'premium-locked' : ''}" id="sound-${s.id}">
@@ -1207,7 +1210,7 @@ function openDashboard(context) {
                         <div class="custom-sound-section" style="margin-top: 15px;">
                             <div class="section-title" style="font-size: 15px;">📁 Use Custom Sound File Path</div>
                             <div class="custom-sound-box">
-                                <input type="text" id="customSoundPath" placeholder="C:\\Path\\To\\CustomSound.wav or .mp3" value="${!builtInSounds.some(s => s.id === activeSound) ? activeSound : ''}">
+                                <input type="text" id="customSoundPath" placeholder="C:\\Path\\To\\CustomSound.wav or .mp3" value="${!builtInSounds.some(s => s.id === activeSound) ? escapedActiveSound : ''}">
                                 <button onclick="saveCustomSound()">Save Path</button>
                             </div>
                         </div>
