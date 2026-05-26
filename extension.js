@@ -2,7 +2,12 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { exec, execFile } = require('child_process');
+
+// Supabase License Server Configuration
+const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
 
 const activeConversations = new Map(); // convoId -> lastPlayedStep
 const seenFilesMtime = new Map(); // filePath -> mtimeMs
@@ -35,6 +40,102 @@ function validateLicenseKey(key) {
     return sum % 10 === 7;
 }
 
+/**
+ * Generates a unique machine fingerprint based on hardware/OS info.
+ */
+function getMachineId() {
+    const raw = `${os.hostname()}-${os.userInfo().username}-${os.cpus()[0]?.model || 'unknown'}-${os.platform()}`;
+    return crypto.createHash('sha256').update(raw).digest('hex').substring(0, 16);
+}
+
+/**
+ * Checks premium status using cached server activation + offline math.
+ */
+function isPremiumActive() {
+    const config = vscode.workspace.getConfiguration('agNotify');
+    const key = config.get('premiumLicenseKey', '');
+    if (!validateLicenseKey(key)) return false;
+    
+    if (!extensionContext) return false;
+    const cached = extensionContext.globalState.get('premiumActivated', false);
+    const cachedMachine = extensionContext.globalState.get('premiumMachineId', '');
+    return cached && cachedMachine === getMachineId();
+}
+
+/**
+ * Activates a license key on the Supabase server.
+ * Returns {success, reason} object.
+ * Falls back to offline validation on network failure.
+ */
+async function activateKeyOnServer(key) {
+    // Quick offline math reject
+    if (!validateLicenseKey(key)) {
+        return { success: false, reason: 'invalid_key' };
+    }
+    
+    try {
+        const machineId = getMachineId();
+        const machineName = `${os.hostname()} (${os.platform()})`;
+        
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/activate_key`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+                p_key: key.trim().toUpperCase(),
+                p_machine_id: machineId,
+                p_machine_name: machineName
+            }),
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeout);
+        
+        if (!response.ok) {
+            console.warn(`AG Notify: Server returned ${response.status}`);
+            return offlineFallback(key);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Cache successful activation locally
+            extensionContext.globalState.update('premiumActivated', true);
+            extensionContext.globalState.update('premiumMachineId', machineId);
+            extensionContext.globalState.update('premiumLastVerified', Date.now());
+        }
+        
+        return result;
+    } catch (error) {
+        console.warn('AG Notify: Server unreachable, using offline fallback', error.message);
+        return offlineFallback(key);
+    }
+}
+
+/**
+ * Offline fallback when server is unreachable.
+ * Only succeeds if there's a cached activation for this machine.
+ */
+function offlineFallback(key) {
+    if (!validateLicenseKey(key)) return { success: false, reason: 'invalid_key' };
+    
+    const cached = extensionContext?.globalState.get('premiumActivated', false);
+    const cachedMachine = extensionContext?.globalState.get('premiumMachineId', '');
+    
+    if (cached && cachedMachine === getMachineId()) {
+        return { success: true, reason: 'offline_cached' };
+    }
+    
+    // First-time activation requires internet
+    return { success: false, reason: 'offline_no_cache' };
+}
+
 function activate(context) {
     console.log('AG Notify extension is now active!');
     setupRetries = 0;
@@ -53,8 +154,7 @@ function activate(context) {
         const config = vscode.workspace.getConfiguration('agNotify');
         const enabled = config.get('enabled', true);
         const completeEnabled = config.get('soundOnComplete', true);
-        const licenseKey = config.get('premiumLicenseKey', '');
-        const isPremium = validateLicenseKey(licenseKey);
+        const isPremium = isPremiumActive();
         
         const items = [
             {
@@ -143,7 +243,7 @@ function activate(context) {
                 
                 // Prevent free users from setting premium sounds through QuickPick
                 const isPremiumSound = targetSound.endsWith('.mp3') && targetSound !== 'notification_pluck.mp3';
-                if (isPremiumSound && !isPremium) {
+                if (isPremiumSound && !isPremiumActive()) {
                     vscode.window.showWarningMessage(
                         "✨ This is a Premium alert chime. Support the project to unlock all premium sounds!",
                         "Open Dashboard",
@@ -226,8 +326,7 @@ function updateStatusBar() {
     
     const config = vscode.workspace.getConfiguration('agNotify');
     const enabled = config.get('enabled', true);
-    const licenseKey = config.get('premiumLicenseKey', '');
-    const isPremium = validateLicenseKey(licenseKey);
+    const isPremium = isPremiumActive();
     
     if (enabled) {
         if (isPremium) {
@@ -251,20 +350,35 @@ async function promptForLicenseKey() {
     });
     
     if (entered) {
-        if (validateLicenseKey(entered)) {
+        if (!validateLicenseKey(entered)) {
+            vscode.window.showErrorMessage("❌ Invalid license key. Please check and try again.");
+            return;
+        }
+        
+        const result = await vscode.window.withProgress(
+            { location: vscode.ProgressLocation.Notification, title: "Activating license..." },
+            () => activateKeyOnServer(entered)
+        );
+        
+        if (result.success) {
             await config.update('premiumLicenseKey', entered.trim().toUpperCase(), vscode.ConfigurationTarget.Global);
             vscode.window.showInformationMessage("✨ AG Notify Premium successfully activated! Thank you for your support! 💖");
             updateStatusBar();
+        } else if (result.reason === 'device_limit') {
+            vscode.window.showErrorMessage(`❌ Device limit reached (${result.max} devices). Deactivate another device first or contact support.`);
+        } else if (result.reason === 'key_disabled') {
+            vscode.window.showErrorMessage("❌ This license key has been disabled. Contact support.");
+        } else if (result.reason === 'offline_no_cache') {
+            vscode.window.showErrorMessage("❌ Internet connection required for first-time activation. Please connect and try again.");
         } else {
-            vscode.window.showErrorMessage("❌ Invalid license key. Please check and try again.");
+            vscode.window.showErrorMessage("❌ Activation failed. Please check your key and try again.");
         }
     }
 }
 
 function checkPremiumStatusAndPrompt(context) {
     const config = vscode.workspace.getConfiguration('agNotify');
-    const licenseKey = config.get('premiumLicenseKey', '');
-    const isPremium = validateLicenseKey(licenseKey);
+    const isPremium = isPremiumActive();
     
     if (isPremium) {
         return; // Premium users enjoy zero ads!
@@ -598,8 +712,7 @@ function openDashboard(context) {
         const completeEnabled = config.get('soundOnComplete', true);
         const activeSound = config.get('soundOnCompleteType', 'notification_pluck.mp3');
         const escapedActiveSound = activeSound.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        const licenseKey = config.get('premiumLicenseKey', '');
-        const isPremium = validateLicenseKey(licenseKey);
+        const isPremium = isPremiumActive();
         const totalChimes = context.globalState.get('totalChimesPlayed', 0);
 
         const builtInSounds = [
@@ -1461,7 +1574,7 @@ function openDashboard(context) {
                             showToast("✨ Premium license successfully activated! Enjoy your premium sounds!", "success");
                             break;
                         case 'licenseFailed':
-                            showToast("❌ Invalid license key. Please check the spelling.", "error");
+                            showToast(message.reason || "❌ Invalid license key. Please check the spelling.", "error");
                             break;
                         case 'updateChimeStats':
                             document.getElementById('totalChimesPlayed').innerText = message.count;
@@ -1522,10 +1635,19 @@ function openDashboard(context) {
                     });
                     break;
                 case 'activateLicense':
-                    if (validateLicenseKey(message.key)) {
+                    if (!validateLicenseKey(message.key)) {
+                        panel.webview.postMessage({ command: 'licenseFailed' });
+                        break;
+                    }
+                    const activationResult = await activateKeyOnServer(message.key);
+                    if (activationResult.success) {
                         await config.update('premiumLicenseKey', message.key.trim().toUpperCase(), vscode.ConfigurationTarget.Global);
                         updateStatusBar();
                         panel.webview.postMessage({ command: 'licenseActivated' });
+                    } else if (activationResult.reason === 'device_limit') {
+                        panel.webview.postMessage({ command: 'licenseFailed', reason: `Device limit reached (${activationResult.max} max). Deactivate another device first.` });
+                    } else if (activationResult.reason === 'offline_no_cache') {
+                        panel.webview.postMessage({ command: 'licenseFailed', reason: 'Internet required for first activation.' });
                     } else {
                         panel.webview.postMessage({ command: 'licenseFailed' });
                     }
