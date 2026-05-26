@@ -6,8 +6,8 @@ const crypto = require('crypto');
 const { exec, execFile } = require('child_process');
 
 // Supabase License Server Configuration
-const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+const SUPABASE_URL = 'https://gywtucdynuxokzeeaofa.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_eGCxjxg2E7wErEGOZYv0iA_X4Wqe_DF';
 
 const activeConversations = new Map(); // convoId -> lastPlayedStep
 const seenFilesMtime = new Map(); // filePath -> mtimeMs
@@ -713,6 +713,7 @@ function openDashboard(context) {
         const activeSound = config.get('soundOnCompleteType', 'notification_pluck.mp3');
         const escapedActiveSound = activeSound.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const isPremium = isPremiumActive();
+        const licenseKey = config.get('premiumLicenseKey', '');
         const totalChimes = context.globalState.get('totalChimesPlayed', 0);
 
         const builtInSounds = [
