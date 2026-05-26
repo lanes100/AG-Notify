@@ -53,8 +53,8 @@ Fine-tune your audio feedback directly in VS Code settings:
 
 This extension is completely free and open-source. If it has saved you hours of staring at the screen and improved your coding flow, please consider supporting the development!
 
-* **Get Premium License Key:** [**Buy Premium for $3 / 120 UAH**](https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322)
-* **Monthly Support on Patreon:** [**LyTblu7 Patreon 🧡**](https://www.patreon.com/LyTblu7/membership) *(License key is available inside the exclusive patron posts immediately after subscribing!)*
+* **Get Premium License Key:** [**Buy Premium for $3 / 120 UAH**](https://agnotify.lemonsqueezy.com/checkout/buy/6ea511d7-3ee0-4561-b65b-b792fbc07322) *(Your unique license key will be automatically sent to your email after purchase!)*
+* **Monthly Support on Patreon:** [**LyTblu7 Patreon 🧡**](https://www.patreon.com/LyTblu7/membership) *(Your unique license key will be automatically sent to your email after subscribing!)*
 * **Monobank Jar (Україна):** [**AG-Notify - На каву ☕**](https://send.monobank.ua/jar/5Lpdn6ThL)
 * **PayPal Tip:** [**Support via PayPal ☕**](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=myshopandmyl1fe@gmail.com&currency_code=USD&item_name=AG-Notify%20Coffee%20Tip)
 * **Reddit Announcement Post:** Join discussions and suggest sounds on [**Reddit Thread 💬**](https://www.reddit.com/r/google_antigravity/comments/1to37ae/ag_notify_sound_notifications_for_antigravity_ide/)

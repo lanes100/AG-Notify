@@ -1480,7 +1480,7 @@ function openDashboard(context, target) {
                                 <a href="https://www.patreon.com/LyTblu7/membership" class="sponsor-btn btn-patreon" target="_blank" style="margin-top: 4px;">
                                     🧡 Patreon Support ($1.99/mo)
                                 </a>
-                                <span class="sponsor-subtext">Monthly recurring support for the "Premium Badge" tier. Key is available on your Patreon tier benefits page.</span>
+                                <span class="sponsor-subtext">Monthly recurring support. Your unique premium license key will be automatically sent to your email after subscribing.</span>
                             </div>
 
                             <!-- Monobank & PayPal (One-time Coffee) -->
