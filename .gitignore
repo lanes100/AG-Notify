@@ -2,3 +2,4 @@ node_modules/
 .agents/
 .vscode/
 dev_assets/
+.vscodeignore
