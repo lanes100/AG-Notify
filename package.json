@@ -5,6 +5,10 @@
   "version": "1.0.4",
   "publisher": "LyTblu7",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LyTblu7/AG-Notify.git"
+  },
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.50.0"

@@ -1,7 +1,8 @@
-node_modules/
-*.vsix
-.agents/
-.vscode/
+.git
+.gitignore
+.vscode/**
+.agents/**
 license_keys.txt
 patreon_banner.png
 patreon_tier_cover.png
+*.vsix
