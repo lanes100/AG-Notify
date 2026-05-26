@@ -1,7 +1,4 @@
 node_modules/
-*.vsix
 .agents/
 .vscode/
-license_keys.txt
-patreon_banner.png
-patreon_tier_cover.png
+dev_assets/
