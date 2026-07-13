@@ -2,12 +2,12 @@
   "name": "ag-notify",
   "displayName": "AG Notify",
   "description": "Plays simple sound notifications when the Google Antigravity Agent finishes a task.",
-  "version": "1.0.8",
-  "publisher": "LyTblu7",
+  "version": "1.0.9",
+  "publisher": "lanes100",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/LyTblu7/AG-Notify.git"
+    "url": "https://github.com/lanes100/AG-Notify.git"
   },
   "icon": "icon.png",
   "engines": {
@@ -32,17 +32,22 @@
         "agNotify.soundOnCompleteType": {
           "type": "string",
           "default": "notification_pluck.mp3",
-          "description": "Choose one of the 10 built-in premium MP3 chimes or specify an absolute path to a custom WAV/MP3 file."
+          "description": "Choose one of the 10 built-in MP3 chimes or specify an absolute path to a custom WAV/MP3 file."
+        },
+        "agNotify.soundOnSend": {
+          "type": "boolean",
+          "default": true,
+          "description": "Play a sound when you send a message in the chat."
+        },
+        "agNotify.soundOnSendType": {
+          "type": "string",
+          "default": "message_chime.mp3",
+          "description": "Choose one of the 10 built-in MP3 chimes or specify an absolute path to a custom WAV/MP3 file to play when sending a message."
         },
         "agNotify.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Global toggle to enable or disable all sound notifications."
-        },
-        "agNotify.premiumLicenseKey": {
-          "type": "string",
-          "default": "",
-          "description": "Patreon/Lemon Squeezy Premium License Key (AGN-XXXX-XXXX) to unlock premium features and remove ads."
         }
       }
     },
@@ -58,14 +63,6 @@
       {
         "command": "agNotify.playTest",
         "title": "AG Notify: Play Test Sound"
-      },
-      {
-        "command": "agNotify.enterLicense",
-        "title": "AG Notify: Enter Premium License Key"
-      },
-      {
-        "command": "agNotify.resetLicense",
-        "title": "AG Notify: Reset Premium License"
       }
     ]
   }
