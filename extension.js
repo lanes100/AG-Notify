@@ -2,33 +2,38 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { exec, execFile } = require('child_process');
+const { exec, execFile, spawn } = require('child_process');
 
 const activeConversations = new Map(); // convoId -> lastPlayedStep
 const seenFilesMtime = new Map(); // filePath -> mtimeMs
+const walSizes = new Map(); // walPath -> lastKnownSize
 let statusBarItem;
 let conversationCheckInterval = null;
 let isStartupPhase = true;
 let extensionPath = ''; // Store extension directory path dynamically
 let extensionContext = null; // Store context reference globally
+let fsWatcher = null;
+let lastSendPlayTime = 0;
+let lastPlayTime = 0;
 
 function activate(context) {
     console.log('AG Notify extension is now active!');
+    
     setupRetries = 0;
     setupTimeoutHandle = null;
     extensionPath = context.extensionPath;
     extensionContext = context;
-    
+
     createStatusBarItem(context);
     setupPollingWatcher(context);
-    
+
     // Register commands
     const toggleCmd = vscode.commands.registerCommand('agNotify.toggle', async () => {
         const config = vscode.workspace.getConfiguration('agNotify');
         const enabled = config.get('enabled', true);
         const completeEnabled = config.get('soundOnComplete', true);
         const sendEnabled = config.get('soundOnSend', true);
-        
+
         const items = [
             {
                 label: enabled ? "$(mute) Global Mute" : "$(unmute) Global Unmute",
@@ -66,13 +71,13 @@ function activate(context) {
                 action: 'test_send'
             }
         ];
-        
+
         const selection = await vscode.window.showQuickPick(items, {
             placeHolder: "AG Notify Controls"
         });
-        
+
         if (!selection) return;
-        
+
         if (selection.action === 'toggle_global') {
             await config.update('enabled', !enabled, vscode.ConfigurationTarget.Global);
             vscode.window.showInformationMessage(`AG Notify notifications globally ${!enabled ? 'ENABLED' : 'DISABLED'}.`);
@@ -89,7 +94,7 @@ function activate(context) {
         } else if (selection.action === 'choose_complete' || selection.action === 'choose_send') {
             const configKey = selection.action === 'choose_complete' ? 'soundOnCompleteType' : 'soundOnSendType';
             const configLabel = selection.action === 'choose_complete' ? 'Completion' : 'Message Sent';
-            
+
             const sounds = [
                 { label: "⭐ Pluck Chime (Default)", description: "notification_pluck.mp3" },
                 { label: "Smooth Stereo Chime", description: "smooth_stereo.mp3" },
@@ -111,11 +116,11 @@ function activate(context) {
                 { label: "Speech On Chirp", description: "Speech On.wav" },
                 { label: "Custom sound file path...", description: "Specify a full path to your own WAV/MP3 file" }
             ];
-            
+
             const chosen = await vscode.window.showQuickPick(sounds, {
                 placeHolder: `Select sound for ${configLabel}`
             });
-            
+
             if (chosen) {
                 let targetSound = chosen.description;
                 if (chosen.label === "Custom sound file path...") {
@@ -129,29 +134,29 @@ function activate(context) {
                         return;
                     }
                 }
-                
+
                 await config.update(configKey, targetSound, vscode.ConfigurationTarget.Global);
                 vscode.window.showInformationMessage(`${configLabel} sound set to ${chosen.label}.`);
                 playSoundDirectly(targetSound);
             }
         }
-        
+
         updateStatusBar();
     });
-    
+
     const playTestCmd = vscode.commands.registerCommand('agNotify.playTest', () => {
         const config = vscode.workspace.getConfiguration('agNotify');
         playSoundDirectly(config.get('soundOnCompleteType', 'notification_pluck.mp3'));
     });
-    
+
     const openDashboardCmd = vscode.commands.registerCommand('agNotify.openDashboard', (target) => {
         openDashboard(context, target);
     });
-    
+
     context.subscriptions.push(openDashboardCmd);
     context.subscriptions.push(toggleCmd);
     context.subscriptions.push(playTestCmd);
-    
+
     // Listen for config changes to update the status bar
     const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('agNotify')) {
@@ -175,10 +180,10 @@ function createStatusBarItem(context) {
 
 function updateStatusBar() {
     if (!statusBarItem) return;
-    
+
     const config = vscode.workspace.getConfiguration('agNotify');
     const enabled = config.get('enabled', true);
-    
+
     if (enabled) {
         statusBarItem.text = `$(bell) AG Notify`;
         statusBarItem.tooltip = `AG Notify is active. Click to manage alerts.`;
@@ -203,19 +208,19 @@ function getLastLineOfFile(filePath) {
         const stat = fs.statSync(filePath);
         const size = stat.size;
         if (size === 0) return '';
-        
+
         // Read only the last 4096 bytes of the file for extreme performance
         const readLength = Math.min(size, 4096);
         const offset = size - readLength;
-        
+
         const fd = fs.openSync(filePath, 'r');
         const buffer = Buffer.alloc(readLength);
         fs.readSync(fd, buffer, 0, readLength, offset);
         fs.closeSync(fd);
-        
+
         const text = buffer.toString('utf8').trim();
         if (!text) return '';
-        
+
         const lines = text.split('\n');
         return (lines.slice(-1)[0] || '').trim();
     } catch (e) {
@@ -225,7 +230,7 @@ function getLastLineOfFile(filePath) {
 
 function setupPollingWatcher(context) {
     const brainDir = path.join(os.homedir(), '.gemini', 'antigravity-ide', 'brain');
-    
+
     if (!fs.existsSync(brainDir)) {
         if (setupRetries < 20) {
             setupRetries++;
@@ -236,9 +241,9 @@ function setupPollingWatcher(context) {
         }
         return;
     }
-    
+
     console.log("AG Notify: Brain directory resolved at:", brainDir);
-    
+
     // Startup scan
     try {
         scanAndProcessAllTranscripts(brainDir);
@@ -249,12 +254,97 @@ function setupPollingWatcher(context) {
         isStartupPhase = false;
         console.log("AG Notify: Startup phase finished. New events will now trigger sounds.");
     }
-    
-    // Polling scanner runs every 1.5 seconds for instant multi-window detection
+
+    // Set up file watcher for instant near-zero latency playback
+    try {
+        fsWatcher = fs.watch(brainDir, { recursive: true }, (eventType, filename) => {
+            if (!filename) return;
+
+            // === COMPLETION CHIME (transcript.jsonl) ===
+            if (filename.endsWith('transcript.jsonl') || filename.includes('transcript.jsonl')) {
+                scanAndProcessAllTranscripts(brainDir);
+            }
+        });
+        console.log("AG Notify: Recursive filesystem watcher initialized successfully.");
+    } catch (err) {
+        console.warn("AG Notify: Recursive watcher failed to initialize, using polling backup only:", err);
+    }
+
+    // === INSTANT SEND CHIME via WAL watcher (T=0ms) ===
+    // Watch the conversations directory for WAL file changes.
+    // When the WAL grows, use PowerShell FileShare.ReadWrite to safely read
+    // the new bytes without causing Node.js file locking conflicts.
+    const conversationsDir = path.join(os.homedir(), '.gemini', 'antigravity-ide', 'conversations');
+    if (fs.existsSync(conversationsDir)) {
+        try {
+            fs.watch(conversationsDir, (eventType, filename) => {
+                if (!filename || !filename.endsWith('.db-wal')) return;
+                const walPath = path.join(conversationsDir, filename);
+                const lastSize = walSizes.get(walPath) || 0;
+
+                // Debounce: don't fire more than once per 500ms per WAL file
+                const debounceKey = `wal_debounce_${walPath}`;
+                if (global[debounceKey]) return;
+                global[debounceKey] = true;
+                setTimeout(() => { global[debounceKey] = false; }, 500);
+
+                // Get current size via stat (safe, no file read)
+                try {
+                    const stat = fs.statSync(walPath);
+                    const newSize = stat.size;
+                    if (newSize <= lastSize) {
+                        walSizes.set(walPath, newSize);
+                        return;
+                    }
+                    const bytesToRead = newSize - lastSize;
+                    walSizes.set(walPath, newSize);
+
+                    if (lastSize === 0 || bytesToRead < 50 || bytesToRead > 10 * 1024 * 1024) return;
+
+                    // Use PowerShell with FileShare.ReadWrite to safely read new WAL bytes
+                    // This bypasses Node.js file locking entirely
+                    const ps = [
+                        `$p = '${walPath.replace(/'/g, "''")}';`,
+                        `$fs = [System.IO.File]::Open($p, 'Open', 'Read', 'ReadWrite');`,
+                        `$fs.Seek(${lastSize}, 'Begin') | Out-Null;`,
+                        `$n = [Math]::Min(${bytesToRead}, 65536);`,
+                        `$b = New-Object byte[] $n;`,
+                        `$fs.Read($b, 0, $n) | Out-Null;`,
+                        `$fs.Close();`,
+                        `$t = [System.Text.Encoding]::UTF8.GetString($b);`,
+                        `if ($t -match 'USER_INPUT') { Write-Output 'SEND' } else { Write-Output 'NOOP' }`
+                    ].join(' ');
+
+                    const child = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], {
+                        windowsHide: true,
+                        stdio: ['ignore', 'pipe', 'ignore']
+                    });
+                    let out = '';
+                    child.stdout.on('data', d => { out += d.toString(); });
+                    child.on('close', () => {
+                        const logPath = require('path').join(require('os').tmpdir(), 'ag_notify_timing.log');
+                        const ts = new Date().toISOString();
+                        require('fs').appendFileSync(logPath, `[${ts}] WAL PowerShell result: "${out.trim()}" bytesRead=${bytesToRead}\n`);
+                        if (out.trim() === 'SEND') {
+                            console.log('AG Notify: USER_INPUT detected in WAL via PowerShell FileShare! T=0 send chime.');
+                            playSound('send');
+                        }
+                    });
+                } catch (e) {
+                    // stat failed - ignore
+                }
+            });
+            console.log('AG Notify: WAL watcher initialized for T=0 send detection.');
+        } catch (err) {
+            console.warn('AG Notify: WAL watcher failed:', err);
+        }
+    }
+
+    // Polling scanner runs every 500ms as a backup for completion sounds
     conversationCheckInterval = setInterval(() => {
         scanAndProcessAllTranscripts(brainDir);
-    }, 1500);
-    
+    }, 500);
+
     context.subscriptions.push({
         dispose: () => {
             stopWatching();
@@ -271,34 +361,40 @@ function stopWatching() {
         clearTimeout(setupTimeoutHandle);
         setupTimeoutHandle = null;
     }
+    if (fsWatcher) {
+        try {
+            fsWatcher.close();
+        } catch (e) { }
+        fsWatcher = null;
+    }
 }
 
 function scanAndProcessAllTranscripts(brainDir) {
     try {
         const activeConvoIds = new Set();
         const activeTranscriptPaths = new Set();
-        
+
         const normalizedBrain = path.normalize(brainDir);
         const convos = fs.readdirSync(normalizedBrain);
         for (const convoId of convos) {
             if (convoId === 'tempmediaStorage') continue;
-            
+
             const logsDir = path.normalize(path.join(normalizedBrain, convoId, '.system_generated', 'logs'));
             const transcriptPath = path.normalize(path.join(logsDir, 'transcript.jsonl'));
-            
+
             // Security check: prevent directory traversal
             if (!isPathSafe(transcriptPath)) continue;
-            
+
             if (fs.existsSync(transcriptPath)) {
                 activeConvoIds.add(convoId);
                 activeTranscriptPaths.add(transcriptPath);
-                
+
                 const stat = fs.statSync(transcriptPath);
                 const prevMtime = seenFilesMtime.get(transcriptPath) || 0;
-                
+
                 if (stat.mtimeMs > prevMtime) {
                     seenFilesMtime.set(transcriptPath, stat.mtimeMs);
-                    
+
                     if (!activeConversations.has(convoId)) {
                         if (isStartupPhase) {
                             const lastStep = getLastStepIndex(transcriptPath);
@@ -315,7 +411,7 @@ function scanAndProcessAllTranscripts(brainDir) {
                 }
             }
         }
-        
+
         // Memory pruning to prevent leaks over time
         for (const key of activeConversations.keys()) {
             if (!activeConvoIds.has(key)) {
@@ -337,7 +433,7 @@ function getLastStepIndex(filePath) {
         if (!isPathSafe(filePath)) return -1;
         const lastLineStr = getLastLineOfFile(filePath);
         if (!lastLineStr) return -1;
-        
+
         const step = JSON.parse(lastLineStr);
         if (step && typeof step.step_index === 'number') {
             return step.step_index;
@@ -348,34 +444,82 @@ function getLastStepIndex(filePath) {
     return -1;
 }
 
+function getRecentSteps(filePath) {
+    try {
+        if (!fs.existsSync(filePath)) return [];
+        const stat = fs.statSync(filePath);
+        const size = stat.size;
+        if (size === 0) return [];
+
+        // Read only the last 4096 bytes of the file for extreme performance
+        const readLength = Math.min(size, 4096);
+        const offset = size - readLength;
+
+        const fd = fs.openSync(filePath, 'r');
+        const buffer = Buffer.alloc(readLength);
+        fs.readSync(fd, buffer, 0, readLength, offset);
+        fs.closeSync(fd);
+
+        const text = buffer.toString('utf8').trim();
+        if (!text) return [];
+
+        return text.split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .map(line => {
+                try {
+                    return JSON.parse(line);
+                } catch (e) {
+                    return null;
+                }
+            })
+            .filter(step => step !== null && typeof step.step_index === 'number');
+    } catch (e) {
+        return [];
+    }
+}
+
 function checkAndPlaySound(filePath, convoId) {
     try {
         if (!isPathSafe(filePath)) return;
-        const lastLineStr = getLastLineOfFile(filePath);
-        if (!lastLineStr) return;
-        
-        const step = JSON.parse(lastLineStr);
-        
-        const isModelResponse = step.source === 'MODEL' && step.type === 'PLANNER_RESPONSE';
-        const isDone = step.status === 'DONE';
-        const toolCalls = step.tool_calls || [];
-        const hasToolCalls = toolCalls.length > 0;
-        const isUserInput = step.type === 'USER_INPUT';
-        
-        const lastPlayed = activeConversations.has(convoId) ? activeConversations.get(convoId) : -1;
-        
-        if (step.step_index > lastPlayed) {
-            // Always update lastPlayed first to prevent double-processing within the same window
-            activeConversations.set(convoId, step.step_index);
-            
-            if (isModelResponse && isDone) {
-                if (!hasToolCalls) {
-                    console.log(`AG Notify: Task completed for step index ${step.step_index} in ${convoId}.`);
-                    playWithLock(convoId, step.step_index, 'complete');
+        const steps = getRecentSteps(filePath);
+        if (steps.length === 0) return;
+
+        // Sort steps by step_index ascending to process them chronologically
+        steps.sort((a, b) => a.step_index - b.step_index);
+
+        let lastPlayed = activeConversations.has(convoId) ? activeConversations.get(convoId) : -1;
+
+        for (const step of steps) {
+            if (step.step_index > lastPlayed) {
+                lastPlayed = step.step_index;
+                activeConversations.set(convoId, lastPlayed);
+
+                const isModelResponse = step.source === 'MODEL' && step.type === 'PLANNER_RESPONSE';
+                const isDone = step.status === 'DONE';
+                const toolCalls = step.tool_calls || [];
+                const hasToolCalls = toolCalls.length > 0;
+                const isUserInput = step.type === 'USER_INPUT';
+
+                if (isModelResponse && isDone) {
+                    if (!hasToolCalls) {
+                        console.log(`AG Notify: Task completed for step index ${step.step_index} in ${convoId}.`);
+                        playWithLock(convoId, step.step_index, 'complete');
+                    }
+                } else if (isUserInput) {
+                    // Only play send sound if not already played via T=0 message file watcher
+                    const now = Date.now();
+                    const logPath = require('path').join(require('os').tmpdir(), 'ag_notify_timing.log');
+                    require('fs').appendFileSync(logPath, `[${new Date().toISOString()}] transcript USER_INPUT step=${step.step_index} lastSendPlayTime_age=${now - lastSendPlayTime}ms\n`);
+                    if (now - lastSendPlayTime > 10000) {
+                        console.log(`AG Notify: Message sent for step index ${step.step_index} in ${convoId} (transcript fallback).`);
+                        playWithLock(convoId, step.step_index, 'send');
+                    } else {
+                        console.log(`AG Notify: Message sent step detected but chime already played at T=0. Skipping.`);
+                        // Still update the lock so we don't re-trigger later
+                        activeConversations.set(convoId, lastPlayed);
+                    }
                 }
-            } else if (isUserInput) {
-                console.log(`AG Notify: Message sent for step index ${step.step_index} in ${convoId}.`);
-                playWithLock(convoId, step.step_index, 'send');
             }
         }
     } catch (err) {
@@ -387,13 +531,13 @@ function playWithLock(convoId, stepIndex, type) {
     try {
         const tempDir = os.tmpdir();
         const lockFile = path.join(tempDir, `ag_notify_${convoId}_${stepIndex}_${type}.lock`);
-        
+
         // Clean up old lock files dynamically to keep temp dir clean
         cleanupOldLockFiles();
-        
+
         // Attempt to create the lock file. 'wx' flag throws if file already exists.
         fs.writeFileSync(lockFile, '', { flag: 'wx' });
-        
+
         // Lock acquired successfully! Play the sound.
         playSound(type);
     } catch (e) {
@@ -409,7 +553,7 @@ function cleanupOldLockFiles() {
         const files = fs.readdirSync(tempDir);
         const now = Date.now();
         const tenMinutes = 10 * 60 * 1000;
-        
+
         for (const file of files) {
             if (file.startsWith('ag_notify_') && file.endsWith('.lock')) {
                 const filePath = path.join(tempDir, file);
@@ -424,35 +568,61 @@ function cleanupOldLockFiles() {
     }
 }
 
-function playSound(type) {
+function playSendSound() {
     const config = vscode.workspace.getConfiguration('agNotify');
-    const globalEnabled = config.get('enabled', true);
-    if (!globalEnabled) return;
-    
-    if (type === 'complete') {
-        const completeEnabled = config.get('soundOnComplete', true);
-        if (!completeEnabled) return;
-        
+    const enabled = config.get('enabled', true);
+    const sendEnabled = config.get('soundOnSend', true);
+    if (!enabled || !sendEnabled) return;
+
+    const now = Date.now();
+    if (now - lastSendPlayTime > 3000) { // Lock out duplicate plays for 3s
+        lastSendPlayTime = now;
+
         if (extensionContext) {
             const count = extensionContext.globalState.get('totalChimesPlayed', 0);
             extensionContext.globalState.update('totalChimesPlayed', count + 1);
         }
-        
-        playSoundDirectly(config.get('soundOnCompleteType', 'notification_pluck.mp3'));
-    } else if (type === 'send') {
-        const sendEnabled = config.get('soundOnSend', true);
-        if (!sendEnabled) return;
-        
-        if (extensionContext) {
-            const count = extensionContext.globalState.get('totalChimesPlayed', 0);
-            extensionContext.globalState.update('totalChimesPlayed', count + 1);
-        }
-        
+
         playSoundDirectly(config.get('soundOnSendType', 'message_chime.mp3'));
     }
 }
 
+function playSound(type) {
+    const config = vscode.workspace.getConfiguration('agNotify');
+    const globalEnabled = config.get('enabled', true);
+    if (!globalEnabled) return;
+
+    if (type === 'complete') {
+        const completeEnabled = config.get('soundOnComplete', true);
+        if (!completeEnabled) return;
+
+        if (extensionContext) {
+            const count = extensionContext.globalState.get('totalChimesPlayed', 0);
+            extensionContext.globalState.update('totalChimesPlayed', count + 1);
+        }
+
+        playSoundDirectly(config.get('soundOnCompleteType', 'notification_pluck.mp3'));
+    } else if (type === 'send') {
+        playSendSound();
+    }
+}
+
 function playSoundDirectly(sound) {
+    const now = Date.now();
+    const minDelay = 1200; // Force 1.2 seconds spacing between any sound playbacks
+    const timeSinceLastPlay = now - lastPlayTime;
+    
+    if (timeSinceLastPlay < minDelay) {
+        const delay = minDelay - timeSinceLastPlay;
+        lastPlayTime = now + delay; // reserve this slot
+        setTimeout(() => playSoundDirectlyActual(sound), delay);
+    } else {
+        lastPlayTime = now;
+        playSoundDirectlyActual(sound);
+    }
+}
+
+function playSoundDirectlyActual(sound) {
     const platform = process.platform;
     const builtInSounds = [
         'notification_pluck.mp3',
@@ -466,28 +636,49 @@ function playSoundDirectly(sound) {
         'best_notification_1.mp3',
         'best_notification_2.mp3'
     ];
-    
+
     let soundPath = sound;
     if (builtInSounds.includes(sound)) {
         soundPath = path.join(extensionPath, 'sounds', sound);
     }
-    
+
     if (platform === 'win32') {
         if (!soundPath.includes('\\') && !soundPath.includes(':')) {
             soundPath = path.join('C:\\Windows\\Media', soundPath);
         }
+
+        const tempDir = os.tmpdir();
+        const vbsPath = path.join(tempDir, 'ag_notify_play.vbs');
         
-        // Pass path safely via environment variable to prevent command injection
-        const env = { ...process.env, AG_SOUND_PATH: soundPath };
-        let psCommand;
-        if (soundPath.endsWith('.mp3')) {
-            psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open([Uri]"$env:AG_SOUND_PATH"); $player.Play(); Start-Sleep -s 5`;
-        } else {
-            psCommand = `(New-Object Media.SoundPlayer "$env:AG_SOUND_PATH").PlaySync()`;
+        if (!fs.existsSync(vbsPath)) {
+            const vbsContent = 
+                'Dim oPlayer\r\n' +
+                'Set oPlayer = CreateObject("WMPlayer.OCX")\r\n' +
+                'oPlayer.URL = WScript.Arguments(0)\r\n' +
+                'oPlayer.controls.play\r\n' +
+                'Do While oPlayer.playState <> 1\r\n' +
+                '    WScript.Sleep 50\r\n' +
+                'Loop\r\n' +
+                'oPlayer.close\r\n' +
+                'Set oPlayer = Nothing\r\n';
+            try {
+                fs.writeFileSync(vbsPath, vbsContent, 'utf8');
+            } catch (err) {
+                console.error("AG Notify: Failed to write VBS file:", err);
+            }
         }
         
-        execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', psCommand], { env }, (error) => {
-            if (error) console.error("AG Notify Error playing Windows sound:", error);
+        execFile('cscript', ['/nologo', vbsPath, soundPath], (error) => {
+            if (error) {
+                console.error("AG Notify Error playing Windows sound via VBS, trying PowerShell fallback...", error);
+                
+                // PowerShell fallback
+                const env = { ...process.env, AG_SOUND_PATH: soundPath };
+                const psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open([Uri]"$env:AG_SOUND_PATH"); $player.Play(); Start-Sleep -s 5`;
+                execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', psCommand], { env }, (psError) => {
+                    if (psError) console.error("AG Notify PowerShell fallback error:", psError);
+                });
+            }
         });
     } else if (platform === 'darwin') {
         if (builtInSounds.includes(sound) || fs.existsSync(soundPath)) {
@@ -508,7 +699,7 @@ function playSoundDirectly(sound) {
                 { cmd: 'play', args: [soundPath] },
                 { cmd: 'aplay', args: [soundPath] }
             ];
-            
+
             function tryPlay(index) {
                 if (index >= players.length) return;
                 const p = players[index];
@@ -559,7 +750,7 @@ function openDashboard(context, target) {
         const enabled = config.get('enabled', true);
         const completeEnabled = config.get('soundOnComplete', true);
         const sendEnabled = config.get('soundOnSend', true);
-        
+
         const completeSound = config.get('soundOnCompleteType', 'notification_pluck.mp3');
         const sendSound = config.get('soundOnSendType', 'message_chime.mp3');
         const totalChimes = context.globalState.get('totalChimesPlayed', 0);
@@ -1077,9 +1268,9 @@ function openDashboard(context, target) {
                         
                         <div class="sounds-grid">
                             ${builtInSounds.map(s => {
-                                const isComplete = completeSound === s.id;
-                                const isSend = sendSound === s.id;
-                                return `
+            const isComplete = completeSound === s.id;
+            const isSend = sendSound === s.id;
+            return `
                                 <div class="sound-card ${isComplete && isSend ? 'active-both' : isComplete ? 'active-complete' : isSend ? 'active-send' : ''}" id="sound-${s.id}">
                                     <div class="sound-info">
                                         <h4>${s.name}</h4>
@@ -1098,7 +1289,7 @@ function openDashboard(context, target) {
                                     </div>
                                 </div>
                                 `;
-                            }).join('')}
+        }).join('')}
                         </div>
                     </div>
 
