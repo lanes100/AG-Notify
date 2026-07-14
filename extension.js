@@ -2,19 +2,22 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { exec, execFile, spawn } = require('child_process');
+const { exec, execFile } = require('child_process');
 
 const activeConversations = new Map(); // convoId -> lastPlayedStep
 const seenFilesMtime = new Map(); // filePath -> mtimeMs
-const walSizes = new Map(); // walPath -> lastKnownSize
+const pendingCompletions = new Map(); // convoId -> completion timer
+const conversationDbUserSteps = new Map(); // dbPath -> latest USER_INPUT idx
+const conversationDbCheckTimers = new Map(); // dbPath -> debounce/retry timer
+const COMPLETION_SETTLE_MS = 600;
 let statusBarItem;
 let conversationCheckInterval = null;
 let isStartupPhase = true;
 let extensionPath = ''; // Store extension directory path dynamically
 let extensionContext = null; // Store context reference globally
 let fsWatcher = null;
-let lastSendPlayTime = 0;
-let lastPlayTime = 0;
+let conversationDbWatcher = null;
+let sqliteDatabaseSync;
 
 function activate(context) {
     console.log('AG Notify extension is now active!');
@@ -255,6 +258,8 @@ function setupPollingWatcher(context) {
         console.log("AG Notify: Startup phase finished. New events will now trigger sounds.");
     }
 
+    setupConversationDatabaseWatcher();
+
     // Set up file watcher for instant near-zero latency playback
     try {
         fsWatcher = fs.watch(brainDir, { recursive: true }, (eventType, filename) => {
@@ -270,77 +275,11 @@ function setupPollingWatcher(context) {
         console.warn("AG Notify: Recursive watcher failed to initialize, using polling backup only:", err);
     }
 
-    // === INSTANT SEND CHIME via WAL watcher (T=0ms) ===
-    // Watch the conversations directory for WAL file changes.
-    // When the WAL grows, use PowerShell FileShare.ReadWrite to safely read
-    // the new bytes without causing Node.js file locking conflicts.
-    const conversationsDir = path.join(os.homedir(), '.gemini', 'antigravity-ide', 'conversations');
-    if (fs.existsSync(conversationsDir)) {
-        try {
-            fs.watch(conversationsDir, (eventType, filename) => {
-                if (!filename || !filename.endsWith('.db-wal')) return;
-                const walPath = path.join(conversationsDir, filename);
-                const lastSize = walSizes.get(walPath) || 0;
-
-                // Debounce: don't fire more than once per 500ms per WAL file
-                const debounceKey = `wal_debounce_${walPath}`;
-                if (global[debounceKey]) return;
-                global[debounceKey] = true;
-                setTimeout(() => { global[debounceKey] = false; }, 500);
-
-                // Get current size via stat (safe, no file read)
-                try {
-                    const stat = fs.statSync(walPath);
-                    const newSize = stat.size;
-                    if (newSize <= lastSize) {
-                        walSizes.set(walPath, newSize);
-                        return;
-                    }
-                    const bytesToRead = newSize - lastSize;
-                    walSizes.set(walPath, newSize);
-
-                    if (lastSize === 0 || bytesToRead < 50 || bytesToRead > 10 * 1024 * 1024) return;
-
-                    // Use PowerShell with FileShare.ReadWrite to safely read new WAL bytes
-                    // This bypasses Node.js file locking entirely
-                    const ps = [
-                        `$p = '${walPath.replace(/'/g, "''")}';`,
-                        `$fs = [System.IO.File]::Open($p, 'Open', 'Read', 'ReadWrite');`,
-                        `$fs.Seek(${lastSize}, 'Begin') | Out-Null;`,
-                        `$n = [Math]::Min(${bytesToRead}, 65536);`,
-                        `$b = New-Object byte[] $n;`,
-                        `$fs.Read($b, 0, $n) | Out-Null;`,
-                        `$fs.Close();`,
-                        `$t = [System.Text.Encoding]::UTF8.GetString($b);`,
-                        `if ($t -match 'USER_INPUT') { Write-Output 'SEND' } else { Write-Output 'NOOP' }`
-                    ].join(' ');
-
-                    const child = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], {
-                        windowsHide: true,
-                        stdio: ['ignore', 'pipe', 'ignore']
-                    });
-                    let out = '';
-                    child.stdout.on('data', d => { out += d.toString(); });
-                    child.on('close', () => {
-                        const logPath = require('path').join(require('os').tmpdir(), 'ag_notify_timing.log');
-                        const ts = new Date().toISOString();
-                        require('fs').appendFileSync(logPath, `[${ts}] WAL PowerShell result: "${out.trim()}" bytesRead=${bytesToRead}\n`);
-                        if (out.trim() === 'SEND') {
-                            console.log('AG Notify: USER_INPUT detected in WAL via PowerShell FileShare! T=0 send chime.');
-                            playSound('send');
-                        }
-                    });
-                } catch (e) {
-                    // stat failed - ignore
-                }
-            });
-            console.log('AG Notify: WAL watcher initialized for T=0 send detection.');
-        } catch (err) {
-            console.warn('AG Notify: WAL watcher failed:', err);
-        }
-    }
-
-    // Polling scanner runs every 500ms as a backup for completion sounds
+    // USER_INPUT transcript steps are the authoritative send signal. SQLite WAL
+    // pages can contain old USER_INPUT text when unrelated records are updated,
+    // so scanning the WAL causes false and repeated send sounds while the model
+    // is working. The filesystem watcher above handles the normal low-latency
+    // path; polling remains as a backup if the OS drops a watcher notification.
     conversationCheckInterval = setInterval(() => {
         scanAndProcessAllTranscripts(brainDir);
     }, 500);
@@ -366,6 +305,102 @@ function stopWatching() {
             fsWatcher.close();
         } catch (e) { }
         fsWatcher = null;
+    }
+    if (conversationDbWatcher) {
+        try {
+            conversationDbWatcher.close();
+        } catch (e) { }
+        conversationDbWatcher = null;
+    }
+    for (const timer of conversationDbCheckTimers.values()) {
+        clearTimeout(timer);
+    }
+    conversationDbCheckTimers.clear();
+    for (const timer of pendingCompletions.values()) {
+        clearTimeout(timer);
+    }
+    pendingCompletions.clear();
+}
+
+function getSqliteDatabaseSync() {
+    if (sqliteDatabaseSync !== undefined) return sqliteDatabaseSync;
+    try {
+        sqliteDatabaseSync = require('node:sqlite').DatabaseSync;
+    } catch (error) {
+        sqliteDatabaseSync = null;
+        console.warn('AG Notify: Built-in SQLite support is unavailable; using transcript send detection.', error);
+    }
+    return sqliteDatabaseSync;
+}
+
+function readLatestUserInputIndex(dbPath) {
+    const DatabaseSync = getSqliteDatabaseSync();
+    if (!DatabaseSync || !fs.existsSync(dbPath)) return { ok: false, index: -1 };
+
+    let db;
+    try {
+        db = new DatabaseSync(dbPath, { readOnly: true });
+        const row = db.prepare('SELECT MAX(idx) AS idx FROM steps WHERE step_type = 14').get();
+        return { ok: true, index: row && row.idx !== null ? Number(row.idx) : -1 };
+    } catch (error) {
+        return { ok: false, index: -1 };
+    } finally {
+        if (db) {
+            try { db.close(); } catch (e) { }
+        }
+    }
+}
+
+function processConversationDatabase(dbPath, playNewEvents) {
+    const result = readLatestUserInputIndex(dbPath);
+    if (!result.ok) return false;
+
+    const previousIndex = conversationDbUserSteps.get(dbPath);
+    conversationDbUserSteps.set(dbPath, result.index);
+
+    if (playNewEvents && result.index >= 0 && (previousIndex === undefined || result.index > previousIndex)) {
+        const convoId = path.basename(dbPath, '.db');
+        console.log(`AG Notify: Message sent for database step index ${result.index} in ${convoId}.`);
+        playWithLock(convoId, result.index, 'send');
+    }
+    return true;
+}
+
+function scheduleConversationDatabaseCheck(dbPath, attempt = 0) {
+    const existingTimer = conversationDbCheckTimers.get(dbPath);
+    if (existingTimer) clearTimeout(existingTimer);
+
+    const timer = setTimeout(() => {
+        conversationDbCheckTimers.delete(dbPath);
+        const succeeded = processConversationDatabase(dbPath, true);
+        if (!succeeded && attempt < 3) {
+            scheduleConversationDatabaseCheck(dbPath, attempt + 1);
+        }
+    }, attempt === 0 ? 15 : 50);
+    conversationDbCheckTimers.set(dbPath, timer);
+}
+
+function setupConversationDatabaseWatcher() {
+    const conversationsDir = path.join(os.homedir(), '.gemini', 'antigravity-ide', 'conversations');
+    if (!fs.existsSync(conversationsDir) || !getSqliteDatabaseSync()) return;
+
+    try {
+        for (const filename of fs.readdirSync(conversationsDir)) {
+            if (filename.endsWith('.db')) {
+                processConversationDatabase(path.join(conversationsDir, filename), false);
+            }
+        }
+
+        conversationDbWatcher = fs.watch(conversationsDir, (eventType, filename) => {
+            if (!filename) return;
+            const changedName = filename.toString();
+            const dbName = changedName.replace(/\.db-(?:wal|shm|journal)$/i, '.db');
+            if (!dbName.endsWith('.db')) return;
+            scheduleConversationDatabaseCheck(path.join(conversationsDir, dbName));
+        });
+        console.log('AG Notify: Conversation database watcher initialized for immediate send detection.');
+    } catch (error) {
+        console.warn('AG Notify: Conversation database watcher failed; using transcript send detection.', error);
     }
 }
 
@@ -416,6 +451,7 @@ function scanAndProcessAllTranscripts(brainDir) {
         for (const key of activeConversations.keys()) {
             if (!activeConvoIds.has(key)) {
                 activeConversations.delete(key);
+                cancelPendingCompletion(key);
             }
         }
         for (const key of seenFilesMtime.keys()) {
@@ -490,41 +526,59 @@ function checkAndPlaySound(filePath, convoId) {
 
         let lastPlayed = activeConversations.has(convoId) ? activeConversations.get(convoId) : -1;
 
-        for (const step of steps) {
-            if (step.step_index > lastPlayed) {
-                lastPlayed = step.step_index;
-                activeConversations.set(convoId, lastPlayed);
+        const newSteps = steps.filter(step => step.step_index > lastPlayed);
+        if (newSteps.length === 0) return;
 
-                const isModelResponse = step.source === 'MODEL' && step.type === 'PLANNER_RESPONSE';
-                const isDone = step.status === 'DONE';
-                const toolCalls = step.tool_calls || [];
-                const hasToolCalls = toolCalls.length > 0;
-                const isUserInput = step.type === 'USER_INPUT';
+        // Any newer transcript activity means a previously final-looking model
+        // response was not actually final.
+        cancelPendingCompletion(convoId);
 
-                if (isModelResponse && isDone) {
-                    if (!hasToolCalls) {
-                        console.log(`AG Notify: Task completed for step index ${step.step_index} in ${convoId}.`);
-                        playWithLock(convoId, step.step_index, 'complete');
-                    }
-                } else if (isUserInput) {
-                    // Only play send sound if not already played via T=0 message file watcher
-                    const now = Date.now();
-                    const logPath = require('path').join(require('os').tmpdir(), 'ag_notify_timing.log');
-                    require('fs').appendFileSync(logPath, `[${new Date().toISOString()}] transcript USER_INPUT step=${step.step_index} lastSendPlayTime_age=${now - lastSendPlayTime}ms\n`);
-                    if (now - lastSendPlayTime > 10000) {
-                        console.log(`AG Notify: Message sent for step index ${step.step_index} in ${convoId} (transcript fallback).`);
-                        playWithLock(convoId, step.step_index, 'send');
-                    } else {
-                        console.log(`AG Notify: Message sent step detected but chime already played at T=0. Skipping.`);
-                        // Still update the lock so we don't re-trigger later
-                        activeConversations.set(convoId, lastPlayed);
-                    }
-                }
-            }
+        lastPlayed = newSteps[newSteps.length - 1].step_index;
+        activeConversations.set(convoId, lastPlayed);
+
+        // A newly discovered transcript can already contain several historical
+        // steps. Only the newest USER_INPUT represents the current send event.
+        const latestUserInput = [...newSteps].reverse().find(step => step.type === 'USER_INPUT');
+        if (latestUserInput) {
+            console.log(`AG Notify: Message sent for step index ${latestUserInput.step_index} in ${convoId}.`);
+            playWithLock(convoId, latestUserInput.step_index, 'send');
+        }
+
+        // Completion is valid only when the newest step is a tool-free, finished
+        // model response and the transcript stays unchanged briefly. This keeps
+        // incoming and outgoing sounds from firing together and lets later agent
+        // activity cancel false completion candidates.
+        const latestStep = newSteps[newSteps.length - 1];
+        const toolCalls = latestStep.tool_calls || [];
+        const isCompletion = latestStep.source === 'MODEL'
+            && latestStep.type === 'PLANNER_RESPONSE'
+            && latestStep.status === 'DONE'
+            && toolCalls.length === 0;
+
+        if (isCompletion) {
+            scheduleCompletion(convoId, latestStep.step_index);
         }
     } catch (err) {
         // Ignore parsing errors
     }
+}
+
+function cancelPendingCompletion(convoId) {
+    const timer = pendingCompletions.get(convoId);
+    if (timer) {
+        clearTimeout(timer);
+        pendingCompletions.delete(convoId);
+    }
+}
+
+function scheduleCompletion(convoId, stepIndex) {
+    cancelPendingCompletion(convoId);
+    const timer = setTimeout(() => {
+        pendingCompletions.delete(convoId);
+        console.log(`AG Notify: Task completed for step index ${stepIndex} in ${convoId}.`);
+        playWithLock(convoId, stepIndex, 'complete');
+    }, COMPLETION_SETTLE_MS);
+    pendingCompletions.set(convoId, timer);
 }
 
 function playWithLock(convoId, stepIndex, type) {
@@ -574,17 +628,12 @@ function playSendSound() {
     const sendEnabled = config.get('soundOnSend', true);
     if (!enabled || !sendEnabled) return;
 
-    const now = Date.now();
-    if (now - lastSendPlayTime > 3000) { // Lock out duplicate plays for 3s
-        lastSendPlayTime = now;
-
-        if (extensionContext) {
-            const count = extensionContext.globalState.get('totalChimesPlayed', 0);
-            extensionContext.globalState.update('totalChimesPlayed', count + 1);
-        }
-
-        playSoundDirectly(config.get('soundOnSendType', 'message_chime.mp3'));
+    if (extensionContext) {
+        const count = extensionContext.globalState.get('totalChimesPlayed', 0);
+        extensionContext.globalState.update('totalChimesPlayed', count + 1);
     }
+
+    playSoundDirectly(config.get('soundOnSendType', 'message_chime.mp3'));
 }
 
 function playSound(type) {
@@ -608,21 +657,6 @@ function playSound(type) {
 }
 
 function playSoundDirectly(sound) {
-    const now = Date.now();
-    const minDelay = 1200; // Force 1.2 seconds spacing between any sound playbacks
-    const timeSinceLastPlay = now - lastPlayTime;
-    
-    if (timeSinceLastPlay < minDelay) {
-        const delay = minDelay - timeSinceLastPlay;
-        lastPlayTime = now + delay; // reserve this slot
-        setTimeout(() => playSoundDirectlyActual(sound), delay);
-    } else {
-        lastPlayTime = now;
-        playSoundDirectlyActual(sound);
-    }
-}
-
-function playSoundDirectlyActual(sound) {
     const platform = process.platform;
     const builtInSounds = [
         'notification_pluck.mp3',
