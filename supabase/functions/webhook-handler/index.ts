@@ -78,7 +78,7 @@ async function sendLicenseEmail(email: string, licenseKey: string): Promise<bool
       },
       body: JSON.stringify({
         sender: {
-          name: "AG Notify Premium",
+          name: "AG Chat Notifications Premium",
           email: "myshopandmyl1fe@gmail.com"
         },
         to: [
@@ -86,10 +86,10 @@ async function sendLicenseEmail(email: string, licenseKey: string): Promise<bool
             email: email
           }
         ],
-        subject: "Your AG Notify Premium License Key! 🔑",
+        subject: "Your AG Chat Notifications Premium License Key! 🔑",
         htmlContent: `
           <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2>Thank you for supporting AG Notify! 💖</h2>
+            <h2>Thank you for supporting AG Chat Notifications! 💖</h2>
             <p>Your premium status has been successfully registered. Here is your license key to unlock all premium features and sounds:</p>
             <div style="background: #f1f1f7; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 18px; font-weight: bold; letter-spacing: 1px; display: inline-block; margin: 10px 0;">
               ${licenseKey}
@@ -97,12 +97,12 @@ async function sendLicenseEmail(email: string, licenseKey: string): Promise<bool
             <p><strong>Instructions:</strong></p>
             <ol>
               <li>Open VS Code.</li>
-              <li>Open the AG Notify Dashboard or press <code>Ctrl+Shift+P</code> and search for <code>AG Notify: Enter License Key</code>.</li>
+              <li>Open the AG Chat Notifications Dashboard or press <code>Ctrl+Shift+P</code> and search for <code>AG Chat Notifications: Enter License Key</code>.</li>
               <li>Paste the key above to activate your Premium features instantly!</li>
             </ol>
             <p>If you have any questions or run into issues, feel free to reply to this email.</p>
             <br>
-            <p>Best regards,<br>AG Notify Developer</p>
+            <p>Best regards,<br>AG Chat Notifications Developer</p>
           </div>
         `
       })
