@@ -1,13 +1,13 @@
 {
-  "name": "ag-chat-notifications",
-  "displayName": "AG Chat Notifications",
+  "name": "ag-notify",
+  "displayName": "AG Notify",
   "description": "Plays simple sound notifications when the Google Antigravity Agent finishes a task.",
   "version": "1.1.4",
   "publisher": "lanes100",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lanes100/AG-Chat-Notifications.git"
+    "url": "https://github.com/lanes100/AG-Notify.git"
   },
   "icon": "icon.png",
   "engines": {
@@ -25,7 +25,7 @@
   },
   "contributes": {
     "configuration": {
-      "title": "AG Chat Notifications Settings",
+      "title": "AG Notify Settings",
       "properties": {
         "agNotify.soundOnComplete": {
           "type": "boolean",
@@ -57,15 +57,15 @@
     "commands": [
       {
         "command": "agNotify.openDashboard",
-        "title": "AG Chat Notifications: Open Settings Dashboard"
+        "title": "AG Notify: Open Settings Dashboard"
       },
       {
         "command": "agNotify.toggle",
-        "title": "AG Chat Notifications: Toggle Sound Notifications"
+        "title": "AG Notify: Toggle Sound Notifications"
       },
       {
         "command": "agNotify.playTest",
-        "title": "AG Chat Notifications: Play Test Sound"
+        "title": "AG Notify: Play Test Sound"
       }
     ]
   }

@@ -20,7 +20,7 @@ let conversationDbWatcher = null;
 let sqliteDatabaseSync;
 
 function activate(context) {
-    console.log('AG Chat Notifications extension is now active!');
+    console.log('AG Notify extension is now active!');
     
     setupRetries = 0;
     setupTimeoutHandle = null;
@@ -76,14 +76,14 @@ function activate(context) {
         ];
 
         const selection = await vscode.window.showQuickPick(items, {
-            placeHolder: "AG Chat Notifications Controls"
+            placeHolder: "AG Notify Controls"
         });
 
         if (!selection) return;
 
         if (selection.action === 'toggle_global') {
             await config.update('enabled', !enabled, vscode.ConfigurationTarget.Global);
-            vscode.window.showInformationMessage(`AG Chat Notifications notifications globally ${!enabled ? 'ENABLED' : 'DISABLED'}.`);
+            vscode.window.showInformationMessage(`AG Notify notifications globally ${!enabled ? 'ENABLED' : 'DISABLED'}.`);
         } else if (selection.action === 'toggle_complete') {
             await config.update('soundOnComplete', !completeEnabled, vscode.ConfigurationTarget.Global);
             vscode.window.showInformationMessage(`Completion sound alerts ${!completeEnabled ? 'ENABLED' : 'DISABLED'}.`);
@@ -188,11 +188,11 @@ function updateStatusBar() {
     const enabled = config.get('enabled', true);
 
     if (enabled) {
-        statusBarItem.text = `$(bell) AG Chat Notifications`;
-        statusBarItem.tooltip = `AG Chat Notifications is active. Click to manage alerts.`;
+        statusBarItem.text = `$(bell) AG Notify`;
+        statusBarItem.tooltip = `AG Notify is active. Click to manage alerts.`;
     } else {
-        statusBarItem.text = `$(bell-slash) AG Chat Notifications: Muted`;
-        statusBarItem.tooltip = `AG Chat Notifications is globally muted. Click to unmute.`;
+        statusBarItem.text = `$(bell-slash) AG Notify: Muted`;
+        statusBarItem.tooltip = `AG Notify is globally muted. Click to unmute.`;
     }
 }
 
@@ -237,25 +237,25 @@ function setupPollingWatcher(context) {
     if (!fs.existsSync(brainDir)) {
         if (setupRetries < 20) {
             setupRetries++;
-            console.log(`AG Chat Notifications: Brain directory does not exist yet. Retrying in 5 seconds... (Attempt ${setupRetries}/20)`);
+            console.log(`AG Notify: Brain directory does not exist yet. Retrying in 5 seconds... (Attempt ${setupRetries}/20)`);
             setupTimeoutHandle = setTimeout(() => setupPollingWatcher(context), 5000);
         } else {
-            console.log("AG Chat Notifications: Brain directory could not be resolved after 20 attempts. Polling watcher stopped.");
+            console.log("AG Notify: Brain directory could not be resolved after 20 attempts. Polling watcher stopped.");
         }
         return;
     }
 
-    console.log("AG Chat Notifications: Brain directory resolved at:", brainDir);
+    console.log("AG Notify: Brain directory resolved at:", brainDir);
 
     // Startup scan
     try {
         scanAndProcessAllTranscripts(brainDir);
-        console.log("AG Chat Notifications: Initial startup scan completed successfully.");
+        console.log("AG Notify: Initial startup scan completed successfully.");
     } catch (e) {
-        console.error("AG Chat Notifications: Error during startup scan:", e);
+        console.error("AG Notify: Error during startup scan:", e);
     } finally {
         isStartupPhase = false;
-        console.log("AG Chat Notifications: Startup phase finished. New events will now trigger sounds.");
+        console.log("AG Notify: Startup phase finished. New events will now trigger sounds.");
     }
 
     setupConversationDatabaseWatcher();
@@ -270,9 +270,9 @@ function setupPollingWatcher(context) {
                 scanAndProcessAllTranscripts(brainDir);
             }
         });
-        console.log("AG Chat Notifications: Recursive filesystem watcher initialized successfully.");
+        console.log("AG Notify: Recursive filesystem watcher initialized successfully.");
     } catch (err) {
-        console.warn("AG Chat Notifications: Recursive watcher failed to initialize, using polling backup only:", err);
+        console.warn("AG Notify: Recursive watcher failed to initialize, using polling backup only:", err);
     }
 
     // USER_INPUT transcript steps are the authoritative send signal. SQLite WAL
@@ -328,7 +328,7 @@ function getSqliteDatabaseSync() {
         sqliteDatabaseSync = require('node:sqlite').DatabaseSync;
     } catch (error) {
         sqliteDatabaseSync = null;
-        console.warn('AG Chat Notifications: Built-in SQLite support is unavailable; using transcript send detection.', error);
+        console.warn('AG Notify: Built-in SQLite support is unavailable; using transcript send detection.', error);
     }
     return sqliteDatabaseSync;
 }
@@ -360,7 +360,7 @@ function processConversationDatabase(dbPath, playNewEvents) {
 
     if (playNewEvents && result.index >= 0 && (previousIndex === undefined || result.index > previousIndex)) {
         const convoId = path.basename(dbPath, '.db');
-        console.log(`AG Chat Notifications: Message sent for database step index ${result.index} in ${convoId}.`);
+        console.log(`AG Notify: Message sent for database step index ${result.index} in ${convoId}.`);
         playWithLock(convoId, result.index, 'send');
     }
     return true;
@@ -398,9 +398,9 @@ function setupConversationDatabaseWatcher() {
             if (!dbName.endsWith('.db')) return;
             scheduleConversationDatabaseCheck(path.join(conversationsDir, dbName));
         });
-        console.log('AG Chat Notifications: Conversation database watcher initialized for immediate send detection.');
+        console.log('AG Notify: Conversation database watcher initialized for immediate send detection.');
     } catch (error) {
-        console.warn('AG Chat Notifications: Conversation database watcher failed; using transcript send detection.', error);
+        console.warn('AG Notify: Conversation database watcher failed; using transcript send detection.', error);
     }
 }
 
@@ -434,10 +434,10 @@ function scanAndProcessAllTranscripts(brainDir) {
                         if (isStartupPhase) {
                             const lastStep = getLastStepIndex(transcriptPath);
                             activeConversations.set(convoId, lastStep);
-                            console.log(`AG Chat Notifications: Startup conversation indexed: ${convoId} with step ${lastStep}`);
+                            console.log(`AG Notify: Startup conversation indexed: ${convoId} with step ${lastStep}`);
                         } else {
                             activeConversations.set(convoId, -1);
-                            console.log(`AG Chat Notifications: New conversation detected dynamically: ${convoId}. Initialized lastPlayed to -1.`);
+                            console.log(`AG Notify: New conversation detected dynamically: ${convoId}. Initialized lastPlayed to -1.`);
                             checkAndPlaySound(transcriptPath, convoId);
                         }
                     } else {
@@ -460,7 +460,7 @@ function scanAndProcessAllTranscripts(brainDir) {
             }
         }
     } catch (err) {
-        console.error("AG Chat Notifications error in polling scan:", err);
+        console.error("AG Notify error in polling scan:", err);
     }
 }
 
@@ -540,7 +540,7 @@ function checkAndPlaySound(filePath, convoId) {
         // steps. Only the newest USER_INPUT represents the current send event.
         const latestUserInput = [...newSteps].reverse().find(step => step.type === 'USER_INPUT');
         if (latestUserInput) {
-            console.log(`AG Chat Notifications: Message sent for step index ${latestUserInput.step_index} in ${convoId}.`);
+            console.log(`AG Notify: Message sent for step index ${latestUserInput.step_index} in ${convoId}.`);
             playWithLock(convoId, latestUserInput.step_index, 'send');
         }
 
@@ -575,7 +575,7 @@ function scheduleCompletion(convoId, stepIndex) {
     cancelPendingCompletion(convoId);
     const timer = setTimeout(() => {
         pendingCompletions.delete(convoId);
-        console.log(`AG Chat Notifications: Task completed for step index ${stepIndex} in ${convoId}.`);
+        console.log(`AG Notify: Task completed for step index ${stepIndex} in ${convoId}.`);
         playWithLock(convoId, stepIndex, 'complete');
     }, COMPLETION_SETTLE_MS);
     pendingCompletions.set(convoId, timer);
@@ -597,7 +597,7 @@ function playWithLock(convoId, stepIndex, type) {
     } catch (e) {
         // Lock acquisition failed (file already exists or write error).
         // Another window is playing this sound.
-        console.log(`AG Chat Notifications: Lock for ${type} sound on step ${stepIndex} already held. Skipping playback.`);
+        console.log(`AG Notify: Lock for ${type} sound on step ${stepIndex} already held. Skipping playback.`);
     }
 }
 
@@ -698,30 +698,30 @@ function playSoundDirectly(sound) {
             try {
                 fs.writeFileSync(vbsPath, vbsContent, 'utf8');
             } catch (err) {
-                console.error("AG Chat Notifications: Failed to write VBS file:", err);
+                console.error("AG Notify: Failed to write VBS file:", err);
             }
         }
         
         execFile('cscript', ['/nologo', vbsPath, soundPath], (error) => {
             if (error) {
-                console.error("AG Chat Notifications Error playing Windows sound via VBS, trying PowerShell fallback...", error);
+                console.error("AG Notify Error playing Windows sound via VBS, trying PowerShell fallback...", error);
                 
                 // PowerShell fallback
                 const env = { ...process.env, AG_SOUND_PATH: soundPath };
                 const psCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open([Uri]"$env:AG_SOUND_PATH"); $player.Play(); Start-Sleep -s 5`;
                 execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', psCommand], { env }, (psError) => {
-                    if (psError) console.error("AG Chat Notifications PowerShell fallback error:", psError);
+                    if (psError) console.error("AG Notify PowerShell fallback error:", psError);
                 });
             }
         });
     } else if (platform === 'darwin') {
         if (builtInSounds.includes(sound) || fs.existsSync(soundPath)) {
             execFile('afplay', [soundPath], (error) => {
-                if (error) console.error("AG Chat Notifications Error playing macOS sound:", error);
+                if (error) console.error("AG Notify Error playing macOS sound:", error);
             });
         } else {
             execFile('afplay', ['/System/Library/Sounds/Glass.aiff'], (error) => {
-                if (error) console.error("AG Chat Notifications Error playing macOS default sound:", error);
+                if (error) console.error("AG Notify Error playing macOS default sound:", error);
             });
         }
     } else {
@@ -746,7 +746,7 @@ function playSoundDirectly(sound) {
             tryPlay(0);
         } else {
             execFile('aplay', ['/usr/share/sounds/alsa/Front_Center.wav'], (error) => {
-                if (error) console.error("AG Chat Notifications Error playing Linux default sound:", error);
+                if (error) console.error("AG Notify Error playing Linux default sound:", error);
             });
         }
     }
@@ -755,7 +755,7 @@ function playSoundDirectly(sound) {
 function openDashboard(context, target) {
     const panel = vscode.window.createWebviewPanel(
         'agNotifyDashboard',
-        'AG Chat Notifications - Settings & Dashboard',
+        'AG Notify - Settings & Dashboard',
         vscode.ViewColumn.One,
         {
             enableScripts: true,
@@ -816,7 +816,7 @@ function openDashboard(context, target) {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: vscode-webview-resource: https:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'unsafe-inline';">
-            <title>AG Chat Notifications Dashboard</title>
+            <title>AG Notify Dashboard</title>
             <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
             <style>
                 :root {
@@ -1228,9 +1228,9 @@ function openDashboard(context, target) {
                 <!-- Branding Header -->
                 <div class="header-card">
                     <div class="brand">
-                        <img class="brand-img" src="${iconUri}" alt="AG Chat Notifications Icon">
+                        <img class="brand-img" src="${iconUri}" alt="AG Notify Icon">
                         <div class="brand-info">
-                            <h1>AG Chat Notifications</h1>
+                            <h1>AG Notify</h1>
                             <p>Premium task notification sound orchestrator for Antigravity Agent</p>
                         </div>
                     </div>
